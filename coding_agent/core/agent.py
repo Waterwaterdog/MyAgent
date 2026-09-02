@@ -1,5 +1,7 @@
 import json
+import time
 import concurrent.futures
+from collections import defaultdict
 from coding_agent.core.model_client import LLMClient
 from coding_agent.core.context import Memory
 from coding_agent.tools.registry import registry
@@ -10,9 +12,16 @@ class Agent:
     Agent 主循环控制器。
     负责接收任务、管理循环迭代、请求 LLM、分发工具调用并返回最终结果。
     """
-    def __init__(self, llm_client: LLMClient, memory: Memory):
+    def __init__(self, llm_client: LLMClient, memory: Memory, max_steps: int = 25, timeout_seconds: int = 300):
         self.llm = llm_client
         self.memory = memory
+        self.max_steps = max_steps
+        self.timeout_seconds = timeout_seconds
+        
+        # 防死循环机制所需的状态追踪
+        self._tool_call_history = defaultdict(int)
+        self._last_tool_calls = None
+        self._no_progress_count = 0
 
     def _execute_tool(self, tool_call):
         tool_name = tool_call.function.name
@@ -20,6 +29,9 @@ class Agent:
         
         print(f"\n[系统]: Agent 发起工具调用 -> {tool_name}")
         print(f"[参数]: {tool_args_str}")
+
+        # 记录工具调用历史 (用于防死循环)
+        self._tool_call_history[(tool_name, tool_args_str)] += 1
         
         tool = registry.get_tool(tool_name)
         if not tool:
@@ -61,12 +73,17 @@ class Agent:
         print(f"\n[用户任务]: {user_input}")
         print("-" * 50)
         
-        max_iterations = 15  # 防止无限循环的安全机制
+        start_time = time.time()
         iteration = 0
         
-        while iteration < max_iterations:
+        while iteration < self.max_steps:
             iteration += 1
             print(f"\n--- [Agent 思考轮次 {iteration}] ---")
+
+            # 机制 5: 全局超时
+            if time.time() - start_time > self.timeout_seconds:
+                print(f"\n[系统警告]: Agent 达到全局超时限制 ({self.timeout_seconds}秒)，被安全机制强制中断！")
+                break
             
             tools = registry.get_openai_schemas()
             
@@ -82,6 +99,29 @@ class Agent:
                 print(f"[Agent 回复]:\n{response_msg.content}")
                 
             if response_msg.tool_calls:
+                # 机制 2 & 3: 重复调用和重复状态检测
+                current_tool_calls_tuple = tuple(sorted((tc.function.name, tc.function.arguments) for tc in response_msg.tool_calls))
+                if self._last_tool_calls == current_tool_calls_tuple:
+                    self._no_progress_count += 1
+                else:
+                    self._no_progress_count = 0
+                self._last_tool_calls = current_tool_calls_tuple
+
+                if self._no_progress_count >= 3:
+                     print("\n[系统警告]: Agent 已连续 3 次发起相同的工具调用，可能陷入了无进展循环。")
+                     # 可以选择在这里中断，或者给模型注入提示
+                     self.memory.add_message("system", "You seem to be making no progress. Please choose a different strategy.")
+                     # 继续让模型决策，而不是直接中断
+                
+                for tool_call in response_msg.tool_calls:
+                    call_tuple = (tool_call.function.name, tool_call.function.arguments)
+                    if self._tool_call_history[call_tuple] >= 3:
+                        print(f"\n[系统警告]: 工具 {call_tuple[0]} 带相同参数已连续调用 3 次，可能陷入死循环，中断执行！")
+                        iteration = self.max_steps # 强制退出循环
+                        break
+                if iteration >= self.max_steps:
+                    break
+                
                 parallel_calls = []
                 serial_calls = []
 
@@ -104,5 +144,5 @@ class Agent:
                 print("\n[系统]: Agent 认为任务已完成，循环结束。")
                 break
                 
-        if iteration >= max_iterations:
-            print("\n[系统警告]: Agent 达到最大思考轮次限制，被安全机制强制中断！")
+        if iteration >= self.max_steps:
+            print(f"\n[系统警告]: Agent 达到最大思考轮次限制 ({self.max_steps}步)，被安全机制强制中断！")
