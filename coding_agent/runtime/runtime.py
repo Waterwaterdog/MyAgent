@@ -178,11 +178,12 @@ class Runtime:
 
             try:
                 start_time_llm = time.time()
+                current_tokens = self.memory.get_total_tokens()
                 response_msg = self.llm.chat(self.memory.get_messages(), tools)
                 latency_llm = time.time() - start_time_llm
                 
                 if self.tracer:
-                    prompt_summary = f"Messages: {len(self.memory.messages)}"
+                    prompt_summary = f"Messages: {len(self.memory.messages)}, Tokens: {current_tokens}"
                     response_summary = response_msg.content[:200] + "..." if response_msg.content and len(response_msg.content) > 200 else (response_msg.content or "Tool Calls")
                     self.tracer.log_model_call(self.llm.model, prompt_summary, response_summary, latency_llm, step=step["id"])
 
@@ -370,11 +371,12 @@ class Runtime:
 
             try:
                 start_time_llm = time.time()
+                current_tokens = self.memory.get_total_tokens()
                 response_msg = self.llm.chat(self.memory.get_messages(), tools)
                 latency_llm = time.time() - start_time_llm
                 
                 if self.tracer:
-                    prompt_summary = f"Messages: {len(self.memory.messages)}"
+                    prompt_summary = f"Messages: {len(self.memory.messages)}, Tokens: {current_tokens}"
                     response_summary = response_msg.content[:200] + "..." if response_msg.content and len(response_msg.content) > 200 else (response_msg.content or "Tool Calls")
                     self.tracer.log_model_call(self.llm.model, prompt_summary, response_summary, latency_llm, step=iteration)
 
@@ -479,11 +481,12 @@ class Runtime:
 
             try:
                 start_time_llm = time.time()
+                current_tokens = self.memory.get_total_tokens()
                 response_msg = self.llm.chat(self.memory.get_messages(), tools)
                 latency_llm = time.time() - start_time_llm
                 
                 if self.tracer:
-                    prompt_summary = f"Messages: {len(self.memory.messages)}"
+                    prompt_summary = f"Messages: {len(self.memory.messages)}, Tokens: {current_tokens}"
                     response_summary = response_msg.content[:200] + "..." if response_msg.content and len(response_msg.content) > 200 else (response_msg.content or "Tool Calls")
                     self.tracer.log_model_call(self.llm.model, prompt_summary, response_summary, latency_llm, step=iteration)
 
