@@ -1,0 +1,29 @@
+{
+  "trace_id": "20260902-924f2ea3",
+  "start_time": "2026-09-02 15:57:25",
+  "events": [
+    {
+      "timestamp": "2026-09-02 15:57:25.848",
+      "event_type": "task_start",
+      "user_input": "嗯",
+      "mode": "standard"
+    },
+    {
+      "timestamp": "2026-09-02 15:57:30.221",
+      "event_type": "model_call",
+      "step": 1,
+      "summary": "LLM 请求完成",
+      "model": "deepseek-v3",
+      "prompt_summary": "Messages: 2",
+      "response_summary": "你好！请问有什么可以帮您的吗？或者您有任何具体的任务需要我协助完成吗？",
+      "latency": 4.372989177703857
+    },
+    {
+      "timestamp": "2026-09-02 15:57:30.222",
+      "event_type": "final_result",
+      "summary": "任务执行完成",
+      "final_result": "你好！请问有什么可以帮您的吗？或者您有任何具体的任务需要我协助完成吗？",
+      "total_latency": 4.373870611190796
+    }
+  ]
+}

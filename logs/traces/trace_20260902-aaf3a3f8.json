@@ -1,0 +1,25 @@
+{
+  "trace_id": "20260902-aaf3a3f8",
+  "start_time": "2026-09-02 15:52:31",
+  "events": [
+    {
+      "timestamp": "2026-09-02 15:52:31.462",
+      "event_type": "task_start",
+      "user_input": "Tell me a joke.",
+      "mode": "standard"
+    },
+    {
+      "timestamp": "2026-09-02 15:52:31.468",
+      "event_type": "model_error",
+      "step": 1,
+      "error": "'MockLLMClient' object has no attribute 'model'"
+    },
+    {
+      "timestamp": "2026-09-02 15:52:31.468",
+      "event_type": "final_result",
+      "summary": "任务执行完成",
+      "final_result": "任务执行结束",
+      "total_latency": 0.007180213928222656
+    }
+  ]
+}

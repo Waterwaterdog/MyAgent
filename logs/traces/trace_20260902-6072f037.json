@@ -1,0 +1,29 @@
+{
+  "trace_id": "20260902-6072f037",
+  "start_time": "2026-09-02 15:52:46",
+  "events": [
+    {
+      "timestamp": "2026-09-02 15:52:46.586",
+      "event_type": "task_start",
+      "user_input": "Tell me a joke.",
+      "mode": "standard"
+    },
+    {
+      "timestamp": "2026-09-02 15:52:46.592",
+      "event_type": "model_call",
+      "step": 1,
+      "summary": "LLM 请求完成",
+      "model": "mock-model",
+      "prompt_summary": "Messages: 2",
+      "response_summary": "Hello, this is a test.",
+      "latency": 0.005957126617431641
+    },
+    {
+      "timestamp": "2026-09-02 15:52:46.593",
+      "event_type": "final_result",
+      "summary": "任务执行完成",
+      "final_result": "Hello, this is a test.",
+      "total_latency": 0.006834506988525391
+    }
+  ]
+}

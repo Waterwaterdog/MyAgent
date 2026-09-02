@@ -44,6 +44,7 @@ class MockLLMClient(LLMClient):
         self.tool_calls = tool_calls
         self.content = content
         self.first_call = True
+        self.model = "mock-model"
 
     def chat(self, messages, tools=None):
         from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageToolCall
