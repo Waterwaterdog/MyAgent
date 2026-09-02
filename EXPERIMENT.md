@@ -1,5 +1,4 @@
 
-
 ## Task 13: API 摘要与 API 文档注入
 日期：2026-09-02
 目标：优化 Agent 与工具 API 的交互方式，实现“默认短，出错再补充”的动态文档策略，以降低 Token 消耗并提升 Agent 的纠错能力。
@@ -26,3 +25,25 @@
 解决方法：无。
 是否回归测试：是。
 结论：Task 13 实现了 Agent 在工具使用上的智能纠错闭环。通过“默认摘要，按需补充”的策略，不仅在常规情况下显著节省了上下文 Token，更重要的是，它赋予了 Agent 从 API 调用失败中自主学习和恢复的能力。这使得 Agent 在面对不熟悉或复杂的工具时更加鲁棒，是提升 Agent 自主解决问题能力的重要一环。
+
+---
+
+## Task 14: Prompt 静态 / 动态分离
+日期：2026-09-02
+目标：将 Prompt 分为静态 (Static) 和动态 (Dynamic) 部分，以优化模型侧 KV Cache 的复用，降低 Token 消耗并提升首字响应速度。
+修改文件：`coding_agent/core/prompt.py`, `coding_agent/core/context.py`, `coding_agent/core/agent.py`, `coding_agent/main.py`
+核心设计：
+1.  **PromptManager**: 新增 `coding_agent/core/prompt.py`，专门负责管理 Prompt 组件。定义了 `STATIC_PREFIX`（包含身份、工具规范、输出格式、安全规则等）和根据模式变化的 `DYNAMIC_INSTRUCTIONS`。
+2.  **ContextManager 重构**: 修改 `coding_agent/core/context.py`，使其支持分层存储。`get_messages()` 方法现在按顺序组装：`STATIC_PREFIX` -> `DYNAMIC_MODE` -> `PLAN/SUMMARY` -> `DYNAMIC_HISTORY`。
+3.  **Plan 动态注入**: 在 `ContextManager` 中新增 `current_plan` 字段，由 `Agent` 在计划生成或更新时实时同步。这使得计划作为动态上下文的一部分，能够在每一轮请求中为模型提供清晰的指导。
+测试命令：`python d:\简历\夏令营\南京大学\南软项目\test_prompt_separation.py`
+测试结果：
+1.  成功验证了 Prompt 的分层组装逻辑。
+2.  `Message 0` (Static Prefix) 保持高度稳定。
+3.  `Message 1` (Mode Instructions) 在运行期间保持稳定。
+4.  `Message 2` (Plan) 随任务进度更新。
+5.  `Message 3+` (History) 承载实时对话。
+遇到的问题：无。
+解决方法：无。
+是否回归测试：是。
+结论：Task 14 成功实现了 Prompt 的静态/动态分离。这种设计从工程角度实现了 Prompt 的模块化管理，并从底层机制上为模型推理性能的优化（KV Cache）打下了坚实基础，是 Agent 系统向生产级演进的重要一步。

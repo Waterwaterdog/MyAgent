@@ -19,18 +19,23 @@ class ContextManager:
     """
     高级上下文管理模块（原 Memory 模块的演进）。
     负责存储对话历史、Token 预算管理、上下文压缩（总结）等。
+    实现了 Prompt 的静态/动态分离以优化 KV Cache。
     """
-    def __init__(self, system_prompt: str, llm_client: Any = None, token_budget: int = 4000):
-        self.system_prompt = system_prompt
+    def __init__(self, static_prompt: str, dynamic_instructions: str, llm_client: Any = None, token_budget: int = 4000):
+        self.static_prompt = static_prompt
+        self.dynamic_instructions = dynamic_instructions
         self.llm = llm_client
         self.token_budget = token_budget
         
         # 结构化存储上下文
-        self.messages: List[Dict[str, Any]] = [
-            {"role": "system", "content": system_prompt}
-        ]
+        self.messages: List[Dict[str, Any]] = []
         self.summary: Optional[str] = None
+        self.current_plan: Optional[Dict] = None
         
+    def update_plan(self, plan: Dict):
+        """更新当前执行计划，作为动态上下文的一部分"""
+        self.current_plan = plan
+
     def add_message(self, role: str, content: str = None, **kwargs):
         """通用消息追加方法"""
         msg = {"role": role}
@@ -55,14 +60,23 @@ class ContextManager:
     def get_total_tokens(self) -> int:
         """估算当前上下文的总 Token 数"""
         total = 0
+        
+        # 静态和动态指令部分
+        total += estimate_tokens(self.static_prompt)
+        total += estimate_tokens(self.dynamic_instructions)
+        
+        # 计划部分
+        if self.current_plan:
+            total += estimate_tokens(json.dumps(self.current_plan))
+            
+        # 对话历史部分
         for msg in self.messages:
             content = msg.get("content", "")
             if isinstance(content, str):
                 total += estimate_tokens(content)
-            elif isinstance(content, list): # 处理 multi-modal 或复杂格式
+            elif isinstance(content, list): 
                 total += estimate_tokens(json.dumps(content))
             
-            # 处理 tool_calls 字段
             if "tool_calls" in msg:
                 total += estimate_tokens(json.dumps(msg["tool_calls"]))
         
@@ -73,22 +87,32 @@ class ContextManager:
 
     def get_messages(self) -> List[Dict[str, Any]]:
         """
-        获取组装好的对话历史。
-        如果存在总结，会将总结插入到 system prompt 之后。
+        组装对话历史，遵循 STATIC PREFIX -> Dynamic Context 结构。
         """
         result = []
-        if self.messages:
-            result.append(self.messages[0]) # System prompt
+        
+        # 1. STATIC PREFIX (保持在最前面以最大化 KV Cache 复用)
+        result.append({"role": "system", "content": self.static_prompt})
+        
+        # 2. DYNAMIC MODE INSTRUCTIONS
+        result.append({"role": "system", "content": self.dynamic_instructions})
+        
+        # 3. CURRENT PLAN
+        if self.current_plan:
+             result.append({
+                 "role": "system", 
+                 "content": f"## 当前任务计划\n{json.dumps(self.current_plan, ensure_ascii=False, indent=2)}"
+             })
+        
+        # 4. SUMMARY (如果有)
+        if self.summary:
+            result.append({
+                "role": "system", 
+                "content": f"以下是此前对话历史的摘要，供参考：\n{self.summary}"
+            })
             
-            if self.summary:
-                result.append({
-                    "role": "system", 
-                    "content": f"Here is a summary of the previous conversation to save context:\n{self.summary}"
-                })
-            
-            # 添加剩余消息（排除已总结的，如果实现了部分总结的话）
-            # 目前简单实现为保留所有，但在 Agent 侧触发 compress
-            result.extend(self.messages[1:])
+        # 5. DYNAMIC HISTORY (User/Assistant/Tool messages)
+        result.extend(self.messages)
             
         return result
 
@@ -102,8 +126,8 @@ class ContextManager:
 
         print(f"\n[系统]: 上下文超过预算 ({self.get_total_tokens()} tokens)，正在触发压缩...")
         
-        # 保留最近的 4 条消息（通常是最近的一轮对话）
-        to_compress = self.messages[1:-4]
+        # 保留最近的 4 条消息
+        to_compress = self.messages[:-4]
         keep_recent = self.messages[-4:]
         
         if not to_compress:
@@ -117,20 +141,17 @@ class ContextManager:
         )
         
         try:
-            # 使用 LLM 进行总结
-            # 注意：这里我们使用一个简单的 chat 调用，不带工具
             summary_msg = self.llm.chat([{"role": "user", "content": prompt}])
             new_summary = summary_msg.content
             
             if self.summary:
-                # 如果已有总结，则合并
                 merge_prompt = f"Combine the existing summary with the new findings:\nExisting: {self.summary}\nNew: {new_summary}"
                 self.summary = self.llm.chat([{"role": "user", "content": merge_prompt}]).content
             else:
                 self.summary = new_summary
             
-            # 更新消息列表：保留 system prompt 和最近的消息
-            self.messages = [self.messages[0]] + keep_recent
+            # 更新消息列表：只保留最近的消息，因为 System Prompts 在 get_messages 中动态生成
+            self.messages = keep_recent
             print(f"[系统]: 压缩完成。当前估算 Token: {self.get_total_tokens()}")
             
         except Exception as e:

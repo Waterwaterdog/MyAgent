@@ -232,6 +232,7 @@ class Agent:
                     print("[系统]: 无法创建计划，转为标准执行模式。")
                     self._run_without_plan(user_input)
                 else:
+                    self.memory.update_plan(self.plan)
                     self.tracer.log_event("plan_generated", {"plan": self.plan})
                     print("\n[系统]: 已生成计划，开始按步骤执行...")
                     print(json.dumps(self.plan, indent=2, ensure_ascii=False))
@@ -263,6 +264,7 @@ class Agent:
                                     print("\n[系统]: 计划已更新！")
                                     print(json.dumps(new_plan, indent=2, ensure_ascii=False))
                                     self.plan = new_plan
+                                    self.memory.update_plan(self.plan)
                                     self.tracer.log_event("plan_updated", {"new_plan": self.plan})
                                     # 重新从第一个未完成的步骤开始
                                     i = 0 
