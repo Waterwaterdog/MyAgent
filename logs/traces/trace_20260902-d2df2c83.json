@@ -1,0 +1,35 @@
+{
+  "trace_id": "20260902-d2df2c83",
+  "start_time": "2026-09-02 16:34:30",
+  "events": [
+    {
+      "timestamp": "2026-09-02 16:34:30.686",
+      "event_type": "task_start",
+      "user_input": "Test task",
+      "mode": "standard"
+    },
+    {
+      "timestamp": "2026-09-02 16:34:30.686",
+      "event_type": "context_compression",
+      "step": 1,
+      "tokens_before": 64
+    },
+    {
+      "timestamp": "2026-09-02 16:34:30.686",
+      "event_type": "model_call",
+      "step": 1,
+      "summary": "LLM 请求完成",
+      "model": "mock-model",
+      "prompt_summary": "Messages: 5",
+      "response_summary": "This is a summary of the conversation.",
+      "latency": 2.9087066650390625e-05
+    },
+    {
+      "timestamp": "2026-09-02 16:34:30.686",
+      "event_type": "final_result",
+      "summary": "任务执行完成",
+      "final_result": "This is a summary of the conversation.",
+      "total_latency": 0.0009448528289794922
+    }
+  ]
+}

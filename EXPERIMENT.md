@@ -94,3 +94,24 @@
 解决方法：无。
 是否回归测试：是。
 结论：成功实现了全链路 Trace 系统。该系统不仅为 Agent 的开发和调试提供了极大的便利，更重要的是，它为 Agent 的自主行为提供了透明的、可追溯的证据。在面试演示中，这套系统能够清晰地展示 Agent “为什么这么做”以及“每一步发生了什么”，是体现工程完备性的重要加分项。
+
+## Task 11: 上下文管理与 Token Budget
+日期：2026-09-02
+目标：实现智能上下文管理，防止 Token 无限增长，通过总结历史消息来节省上下文空间。
+修改文件：`coding_agent/core/context.py`, `coding_agent/core/agent.py`, `coding_agent/main.py`, `coding_agent/planning/planner.py`
+核心设计：
+1.  **ContextManager**: 将原 `Memory` 升级为 `ContextManager`。
+    *   **Token 估算**: 实现了 `estimate_tokens` 函数，根据字符类型（中英文）启发式估算 Token。
+    *   **预算管理**: 支持设置 `token_budget`，并在每次请求前检查。
+    *   **上下文压缩**: 当 Token 超支时，调用 LLM 对旧的对话和工具结果进行摘要总结（Summary），并将总结结果注入上下文。
+2.  **Agent 集成**: 在核心循环的每一轮请求 LLM 前，自动检查 `memory.get_total_tokens()`，并在必要时触发 `memory.compress()`。
+3.  **优先级保留**: 压缩时保留最近 4 条消息，确保 Agent 对当前执行中的子任务具有精确记忆。
+测试命令：`python test_context.py`
+测试结果：
+1.  手动构造大量长消息后，估算 Token 成功超过预算。
+2.  Agent 自动触发压缩，打印出“[系统]: 上下文超过预算...正在触发压缩...”。
+3.  压缩后 Token 显著下降（从 590 降至 139），且 Agent 能够根据 `summary` 继续执行任务。
+遇到的问题：无。
+解决方法：无。
+是否回归测试：是。
+结论：上下文管理是 Coding Agent 走向实用化的关键一步。通过 Token 预算和动态总结机制，我们成功解决了上下文膨胀导致的成本上升和长任务失败问题。这种“保留摘要 + 保留近期记忆”的策略在节省空间的同时最大程度维持了 Agent 的智能水平。

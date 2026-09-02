@@ -121,6 +121,12 @@ class Agent:
             
             tools = registry.get_openai_schemas()
             
+            # 在发送请求前检查 Token 预算并触发压缩
+            if self.memory.get_total_tokens() > self.memory.token_budget:
+                self.memory.compress()
+                if self.tracer:
+                    self.tracer.log_event("context_compression", {"tokens_before": self.memory.get_total_tokens()}, step=step["id"])
+
             try:
                 start_time_llm = time.time()
                 response_msg = self.llm.chat(self.memory.get_messages(), tools)
@@ -293,6 +299,12 @@ class Agent:
             
             tools = registry.get_openai_schemas()
             
+            # 在发送请求前检查 Token 预算并触发压缩
+            if self.memory.get_total_tokens() > self.memory.token_budget:
+                self.memory.compress()
+                if self.tracer:
+                    self.tracer.log_event("context_compression", {"tokens_before": self.memory.get_total_tokens()}, step=iteration)
+
             try:
                 start_time_llm = time.time()
                 response_msg = self.llm.chat(self.memory.get_messages(), tools)
@@ -385,6 +397,12 @@ class Agent:
             
             tools = registry.get_openai_schemas()
             
+            # 在发送请求前检查 Token 预算并触发压缩
+            if self.memory.get_total_tokens() > self.memory.token_budget:
+                self.memory.compress()
+                if self.tracer:
+                    self.tracer.log_event("context_compression", {"tokens_before": self.memory.get_total_tokens()}, step=iteration)
+
             try:
                 start_time_llm = time.time()
                 response_msg = self.llm.chat(self.memory.get_messages(), tools)

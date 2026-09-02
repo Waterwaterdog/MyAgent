@@ -12,14 +12,15 @@
 - Task 08: ReAct 架构
 - Task 09: Plan + ReAct 混合架构
 - Task 10: 全链路 Trace / Logging
+- Task 11: 上下文管理与 Token Budget
 
 ## Current
 
-- Task 11: 上下文管理与 Token Budget
+- Task 12: Tool Result 压缩
 
 ## Next
 
-- Task 12: Tool Result 压缩
+- Task 13: API 摘要与 API 文档注入
 
 ## Blocked
 

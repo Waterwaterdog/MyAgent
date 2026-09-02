@@ -18,6 +18,7 @@ def main():
     group.add_argument('--plan', action='store_true', help='Enable Plan->Execute mode.')
     group.add_argument('--react', action='store_true', help='Enable ReAct mode.')
     group.add_argument('--hybrid', action='store_true', help='Enable Plan + ReAct hybrid mode.')
+    parser.add_argument('--token-budget', type=int, default=4000, help='Max tokens before context compression.')
     args = parser.parse_args()
 
     print("=======================================")
@@ -71,8 +72,9 @@ def main():
                 "例如，如果 `read_file` 失败并建议 `list_files`，你必须立即调用 `list_files` 来检查目录内容，而不是告诉用户“文件未找到”。\n"
                 "在你认为任务已完全解决、不再需要调用任何工具时，才输出对用户的最终总结回复。"
             )
-
-        memory = Memory(system_prompt)
+        
+        # 实例化上下文管理器，注入 LLM 用于后续可能的压缩任务
+        memory = Memory(system_prompt, llm_client=llm_client, token_budget=args.token_budget)
         
         # 注入依赖，实例化 Agent
         agent = Agent(llm_client, memory, planning_mode=args.plan, react_mode=args.react, hybrid_mode=args.hybrid)
