@@ -24,7 +24,7 @@ def main():
     args = parser.parse_args()
 
     print("=======================================")
-    print("  Coding Agent 启动 (推免考核项目)")
+    print("  MyAgent 启动 ")
     mode = "standard"
     if args.hybrid:
         print("  (Plan + ReAct 混合模式已启用)")
