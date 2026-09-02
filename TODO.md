@@ -18,14 +18,15 @@
 - Task 14: Prompt 静态/动态分离
 - Task 15: Memory：短期/中期/长期
 - Task 16: Memory + KV Cache 复用策略
+- Task 17: Skill 系统
 
 ## Current
 
-- Task 17: Skill 系统
+- Task 18: 模块化架构 + 可插拔组件
 
 ## Next
 
-- Task 18: 模块化架构 + 可插拔组件
+- Task 19: 综合 Benchmark / Ablation / 回归测试
 
 ## Blocked
 

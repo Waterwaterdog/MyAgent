@@ -20,6 +20,8 @@ Each error is represented by a structured `AgentError` object with the following
 |---|---|---|---|---|
 | `E_TOOL_NOT_FOUND` | `ToolError` | The requested tool could not be found. | `false` | - Verify the tool name. <br> - List available tools. |
 | `E_TOOL_INVALID_ARGS` | `ToolError` | The arguments provided to the tool are invalid. | `false` | - Check the tool's schema for required arguments. <br> - Correct the arguments and retry. |
+| `E_SKILL_NOT_FOUND` | `SkillError` | The requested skill could not be found. | `false` | - Verify the skill name. <br> - Check available skills. |
+| `E_SKILL_ERROR` | `SkillError` | An error occurred while activating or using the skill. | `false` | - Verify the skill's requirements and input context. |
 | `E_FILE_NOT_FOUND` | `FileError` | The specified file could not be found. | `false` | - Verify the file path. <br> - List files in the directory to check if the file exists. |
 | `E_FILE_PERMISSION` | `FileError` | Insufficient permissions to access the file. | `false` | - Check file permissions. |
 | `E_FILE_WRITE` | `FileError` | An error occurred while writing to the file. | `true` | - Retry writing to the file. |

@@ -4,6 +4,7 @@ from coding_agent.tools.base import BaseTool
 from coding_agent.tools.file_tools import ListFilesTool, ReadFileTool, WriteFileTool, EditFileTool, SearchFilesTool
 from coding_agent.tools.cmd_tools import RunCommandTool
 from coding_agent.tools.api_registry import ApiRegistry
+from coding_agent.tools.skill_tools import UseSkillTool
 
 class ToolRegistry:
     """
@@ -53,6 +54,12 @@ api_registry.register(search_files_tool, "搜索文件", "search_files(query='he
 run_command_tool = RunCommandTool()
 registry.register(run_command_tool)
 api_registry.register(run_command_tool, "执行Shell命令", "run_command(command='ls -l')")
+
+# Skill tool
+from coding_agent.tools.skill_tools import UseSkillTool
+use_skill_tool = UseSkillTool()
+registry.register(use_skill_tool)
+api_registry.register(use_skill_tool, "Activate a skill", "use_skill(skill_name='debugging')")
 
 
 # 为了保持向后兼容性，保留原来的变量和函数

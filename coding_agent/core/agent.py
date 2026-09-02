@@ -10,6 +10,10 @@ from coding_agent.core.error import AgentError
 from coding_agent.planning.planner import Planner
 from coding_agent.tracing.tracer import Tracer
 from coding_agent.core.result_analyzer import ResultAnalyzer
+from coding_agent.skills.registry import skill_registry
+from coding_agent.skills.base import BaseSkill
+from typing import Optional
+
 
 class Agent:
     """
@@ -27,6 +31,7 @@ class Agent:
         self.hybrid_mode = hybrid_mode
         self.result_analyzer = ResultAnalyzer()
         self.memory_manager = MemoryManager(llm_client)
+        self.active_skill: Optional[BaseSkill] = None
         
         # 防死循环机制所需的状态追踪
         self._tool_call_history = defaultdict(int)
@@ -41,6 +46,13 @@ class Agent:
             self.planner = Planner(llm_client)
             self.plan = None
 
+    def _get_available_tools(self):
+        if self.active_skill and self.active_skill.allowed_tools:
+            allowed_tool_names = self.active_skill.allowed_tools + ['use_skill']
+            return [tool.to_openai_tool() for tool in registry.get_all_tools() if tool.name in allowed_tool_names]
+        return api_registry.get_all_summaries()
+
+
     def _sync_memory(self):
         """同步中长期记忆到上下文管理器"""
         long_term = self.memory_manager.get_long_term_context()
@@ -50,6 +62,26 @@ class Agent:
     def _execute_tool(self, tool_call, step_id=None):
         tool_name = tool_call.function.name
         tool_args_str = tool_call.function.arguments
+
+        if tool_name == 'use_skill':
+            try:
+                args = json.loads(tool_args_str)
+                skill_name = args.get('skill_name')
+                skill = skill_registry.get_skill(skill_name)
+                if skill:
+                    self.active_skill = skill
+                    result = f"Skill '{skill_name}' is now active. Instructions: {skill.instructions}"
+                    self.memory.add_message("system", result)
+                    print(f"[系统]: {result}")
+                    return tool_call.id, result, None
+                else:
+                    error = AgentError(code="E_SKILL_NOT_FOUND", type="SkillError", message=f"Skill '{skill_name}' not found.")
+                    result = json.dumps(error.to_dict(), ensure_ascii=False)
+                    return tool_call.id, result, "E_SKILL_NOT_FOUND"
+            except Exception as e:
+                error = AgentError(code="E_SKILL_ERROR", type="SkillError", message=f"Error activating skill: {e}")
+                result = json.dumps(error.to_dict(), ensure_ascii=False)
+                return tool_call.id, result, "E_SKILL_ERROR"
         
         print(f"\n[系统]: Agent 发起工具调用 -> {tool_name}")
         print(f"[参数]: {tool_args_str}")
@@ -136,7 +168,7 @@ class Agent:
             # 同步记忆到上下文
             self._sync_memory()
             
-            tools = api_registry.get_all_summaries()
+            tools = self._get_available_tools()
             
             # 在发送请求前检查 Token 预算并触发压缩
             if self.memory.get_total_tokens() > self.memory.token_budget:
@@ -335,7 +367,7 @@ class Agent:
             # 同步记忆到上下文
             self._sync_memory()
             
-            tools = api_registry.get_all_summaries()
+            tools = self._get_available_tools()
             
             # 在发送请求前检查 Token 预算并触发压缩
             if self.memory.get_total_tokens() > self.memory.token_budget:
@@ -462,7 +494,7 @@ class Agent:
             # 同步记忆到上下文
             self._sync_memory()
             
-            tools = api_registry.get_all_summaries()
+            tools = self._get_available_tools()
             
             # 在发送请求前检查 Token 预算并触发压缩
             if self.memory.get_total_tokens() > self.memory.token_budget:

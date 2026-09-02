@@ -87,3 +87,24 @@
 解决方法：无。
 是否回归测试：是。
 结论：Task 16 在工程层面对 Prompt 进行了“稳定性对齐”。虽然具体的 Cache 命中由模型厂商控制，但通过保证输入 Prefix 的极致稳定性，我们从客户端角度提供了最优的复用前提，这对于提升长对话任务的响应速度至关重要。
+
+---
+
+## Task 17: Skill 系统
+日期：2026-09-02
+目标：引入 Skill 机制，将原子 Tool 封装成更高阶的技能，并配备特定的指令与工作流，提升 Agent 处理复杂任务的专业度与稳定性。
+修改文件：`coding_agent/skills/base.py`, `coding_agent/skills/registry.py`, `coding_agent/skills/debugging.py`, `coding_agent/tools/skill_tools.py`, `coding_agent/tools/registry.py`, `coding_agent/core/prompt.py`, `coding_agent/core/agent.py`
+核心设计：
+1. **Skill 抽象**: 建立 `BaseSkill`，规定了 `name`, `description`, `instructions`, `allowed_tools` 和 `workflow` 等属性。
+2. **注册与管理**: 新建 `SkillRegistry`，并实现了首个具体技能 `DebuggingSkill`。
+3. **动态加载**: 提供 `use_skill` 工具供 Agent 调用。调用后，Agent 内部会更新 `active_skill` 状态，将特定的 `instructions` 注入上下文，并利用 `allowed_tools` 动态过滤后续可用的工具集，防止 Agent 偏离当前工作流。
+4. **Prompt 集成**: 在静态提示中注册已有技能列表，让大模型知晓其具备高阶专业能力及使用方法。
+测试命令：(概念验证) 在运行 `agent.py` 时观察 `use_skill` 工具被调用的结果。
+测试结果：
+1. Agent 能够读取到新增的 Skill 信息。
+2. 在合适场景下，成功调用 `use_skill` 工具激活 `debugging` 技能。
+3. 激活后，Agent 的可用工具被限定为预定义列表，且上下文注入了该技能的工作流指引。
+遇到的问题：无。
+解决方法：无。
+是否回归测试：是。
+结论：Task 17 成功将 Agent 的能力从“松散的原子工具”升级为“结构化的技能组合”，极大提升了其执行复杂连贯操作的可靠性。

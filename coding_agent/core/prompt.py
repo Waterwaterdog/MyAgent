@@ -1,3 +1,4 @@
+from coding_agent.skills.registry import skill_registry
 
 class PromptManager:
     """
@@ -38,12 +39,30 @@ class PromptManager:
         "2. 执行 Shell 命令时要格外小心，确保路径和命令安全。"
     )
 
+    STATIC_SKILL_RULES = (
+        "## Skill 使用规范\n"
+        "1. Skills are high-level capabilities that can solve complex tasks using a predefined workflow.\n"
+        "2. To use a skill, call the `use_skill` tool with the desired skill's name.\n"
+        "3. When a skill is active, you should follow its instructions and workflow.\n"
+    )
+
     @classmethod
     def get_static_prefix(cls) -> str:
         """获取所有静态 Prompt 组件拼接后的字符串"""
+        
+        # Add skill descriptions to the prompt
+        skills = skill_registry.get_all_skills()
+        skill_docs = ""
+        if skills:
+            skill_docs = "## Available Skills\n"
+            for skill in skills:
+                skill_docs += f"- **{skill.name}**: {skill.description}\n  - *When to use*: {skill.when_to_use}\n"
+        
         return "\n\n".join([
             cls.STATIC_IDENTITY,
             cls.STATIC_TOOL_RULES,
+            cls.STATIC_SKILL_RULES,
+            skill_docs,
             cls.STATIC_OUTPUT_FORMAT,
             cls.STATIC_ERROR_PROTOCOL,
             cls.STATIC_SAFETY_RULES

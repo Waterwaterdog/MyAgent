@@ -24,14 +24,37 @@ class ToolRegistry:
     def get_tool(self, name: str) -> Optional[BaseTool]: ...
     def get_all_tools(self) -> List[BaseTool]: ...
     def get_openai_schemas(self) -> List[Dict[str, Any]]: ...
-27→```
-28→
-29→## ResultAnalyzer 接口
-30→
-31→```python
-32→class ResultAnalyzer:
-33→    def __init__(self, max_output_tokens: int = 1024): ...
-34→    def compress(self, tool_output: any, tool_name: str) -> str: ...
-35→    def _truncate_text(self, text: str, max_len: int) -> str: ...
-36→```
+```
+
+## ResultAnalyzer 接口
+
+```python
+class ResultAnalyzer:
+    def __init__(self, max_output_tokens: int = 1024): ...
+    def compress(self, tool_output: any, tool_name: str) -> str: ...
+    def _truncate_text(self, text: str, max_len: int) -> str: ...
+```
+
+## BaseSkill 接口
+
+```python
+class BaseSkill(ABC):
+    name: str # 技能名称
+    description: str # 技能描述
+    when_to_use: str # 何时使用该技能
+    instructions: str # 给模型的技能使用说明
+    allowed_tools: List[str] # 技能允许使用的工具列表
+    workflow: List[Dict[str, Any]] # 技能的工作流步骤
+    
+    def to_dict(self) -> Dict[str, Any]: ...
+```
+
+## SkillRegistry 接口
+
+```python
+class SkillRegistry:
+    def register(self, skill: BaseSkill): ...
+    def get_skill(self, name: str) -> Optional[BaseSkill]: ...
+    def get_all_skills(self) -> List[BaseSkill]: ...
+    def get_skill_schemas(self) -> List[Dict]: ...
 ```

@@ -111,3 +111,21 @@ ReAct 架构的优势在于其**动态适应性**，它能够处理那些在开�
 - **长期记忆 (Long-term)**: 持久化在磁盘上的 JSON 文件中，存储跨会话的用户偏好和通用经验知识。
 - **记忆提取与注入**: Agent 在执行过程中自动识别并沉淀知识，并在每一轮推理前将相关的记忆片段动态注入到上下文的特定位置。
 
+---
+
+## Skill 系统 (Skill System)
+
+为了将 Agent 从简单的“工具调用者”提升为具备专业知识的“专家系统”，项目引入了可复用的 Skill 机制。
+
+- **Skill vs. Tool**:
+    - **Tool**: 原子能力，如 `read_file`, `run_command`。Agent 拥有工具箱，但可能缺乏高效组合它们的领域经验。
+    - **Skill**: 高阶能力封装，如 `Debugging`。它不仅包含工具集，还硬编码了**专家经验 (Instructions)** 和 **标准工作流 (Workflow)**。
+- **架构设计**: 
+    - 基础定义在 `coding_agent/skills/base.py`。每个 Skill 类明确定义了 `name`, `description`, `instructions`, `allowed_tools` 和 `workflow`。
+    - 统一通过 `SkillRegistry` 进行管理和加载。
+- **动态激活闭环**:
+    1. **认知与激活**: Agent 的静态 Prompt 中注入了可用 Skill 的列表与说明。当 Agent 判断当前任务需要专业流程时，它会主动调用特定的 `use_skill` 工具。
+    2. **上下文重构**: 激活后，Agent 会将该 Skill 的详细指令和工作流注入系统上下文，指导接下来的思考。
+    3. **工具集收敛**: 为防止 Agent 偏离标准流程，激活 Skill 后，可供大模型使用的工具集会被严格限制为该 Skill 定义的 `allowed_tools` 白名单。
+- **价值**: 通过引入 SOP (标准作业程序)，大幅提升了复杂任务（如定位 Bug 并修复）的执行成功率和可控性，是实现生产级 Agent 的关键一步。
+
