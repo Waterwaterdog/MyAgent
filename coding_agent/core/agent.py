@@ -13,12 +13,13 @@ class Agent:
     Agent 主循环控制器。
     负责接收任务、管理循环迭代、请求 LLM、分发工具调用并返回最终结果。
     """
-    def __init__(self, llm_client: LLMClient, memory: Memory, max_steps: int = 25, timeout_seconds: int = 300, planning_mode: bool = False):
+    def __init__(self, llm_client: LLMClient, memory: Memory, max_steps: int = 25, timeout_seconds: int = 300, planning_mode: bool = False, react_mode: bool = False):
         self.llm = llm_client
         self.memory = memory
         self.max_steps = max_steps
         self.timeout_seconds = timeout_seconds
         self.planning_mode = planning_mode
+        self.react_mode = react_mode
         
         # 防死循环机制所需的状态追踪
         self._tool_call_history = defaultdict(int)
@@ -179,8 +180,91 @@ class Agent:
             
             print("\n[系统]: 所有计划步骤已执行完毕。")
 
+        elif self.react_mode:
+            self._run_react_mode(user_input)
+
         else:
             self._run_without_plan(user_input)
+
+    def _run_react_mode(self, user_input: str):
+        print("\n[系统]: 进入 ReAct 模式...")
+        start_time = time.time()
+        iteration = 0
+        
+        while iteration < self.max_steps:
+            iteration += 1
+            # The "Observe" part of ReAct is the tool results from the previous step, which are already in memory.
+            print(f"\n--- [ReAct 轮次 {iteration}: Reason/Act] ---")
+
+            if time.time() - start_time > self.timeout_seconds:
+                print(f"\n[系统警告]: Agent 达到全局超时限制 ({self.timeout_seconds}秒)，被安全机制强制中断！")
+                break
+            
+            tools = registry.get_openai_schemas()
+            
+            try:
+                response_msg = self.llm.chat(self.memory.get_messages(), tools)
+            except Exception as e:
+                print(f"[系统错误]: 请求 LLM 失败: {e}")
+                break
+            
+            self.memory.add_assistant_message(response_msg)
+            
+            if response_msg.content:
+                # This is the "Reason" part
+                print(f"[Agent 决策]:\n{response_msg.content}")
+                
+            if response_msg.tool_calls:
+                # This is the "Act" part
+                # Anti-loop mechanisms
+                current_tool_calls_tuple = tuple(sorted((tc.function.name, tc.function.arguments) for tc in response_msg.tool_calls))
+                if self._last_tool_calls == current_tool_calls_tuple:
+                    self._no_progress_count += 1
+                else:
+                    self._no_progress_count = 0
+                self._last_tool_calls = current_tool_calls_tuple
+
+                if self._no_progress_count >= 3:
+                     print("\n[系统警告]: Agent 已连续 3 次发起相同的工具调用，可能陷入了无进展循环。")
+                     self.memory.add_message("system", "You seem to be making no progress. Please choose a different strategy.")
+                
+                for tool_call in response_msg.tool_calls:
+                    call_tuple = (tool_call.function.name, tool_call.function.arguments)
+                    if self._tool_call_history[call_tuple] >= 3:
+                        print(f"\n[系统警告]: 工具 {call_tuple[0]} 带相同参数已连续调用 3 次，可能陷入死循环，中断执行！")
+                        iteration = self.max_steps 
+                        break
+                if iteration >= self.max_steps:
+                    break
+                
+                parallel_calls = []
+                serial_calls = []
+
+                for tool_call in response_msg.tool_calls:
+                    tool = registry.get_tool(tool_call.function.name)
+                    if tool and tool.parallel_safe:
+                        parallel_calls.append(tool_call)
+                    else:
+                        serial_calls.append(tool_call)
+                
+                # The results of these executions are the "Observation"
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    parallel_results = list(executor.map(self._execute_tool, parallel_calls))
+                    for tool_call_id, result in parallel_results:
+                        self.memory.add_tool_message(tool_call_id, result)
+
+                for tool_call in serial_calls:
+                    tool_call_id, result = self._execute_tool(tool_call)
+                    self.memory.add_tool_message(tool_call_id, result)
+            else:
+                print("\n[系统]: Agent 认为任务已完成，循环结束。")
+                if response_msg.content:
+                    # Final answer
+                    print(f"\n[Agent 最终回复]:\n{response_msg.content}")
+                break
+                
+        if iteration >= self.max_steps:
+            print(f"\n[系统警告]: Agent 达到最大思考轮次限制 ({self.max_steps}步)，被安全机制强制中断！")
 
     def _run_without_plan(self, user_input: str):
         start_time = time.time()
