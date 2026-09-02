@@ -17,11 +17,14 @@ def main():
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--plan', action='store_true', help='Enable Plan->Execute mode.')
     group.add_argument('--react', action='store_true', help='Enable ReAct mode.')
+    group.add_argument('--hybrid', action='store_true', help='Enable Plan + ReAct hybrid mode.')
     args = parser.parse_args()
 
     print("=======================================")
     print("  Coding Agent 启动 (推免考核项目)")
-    if args.plan:
+    if args.hybrid:
+        print("  (Plan + ReAct 混合模式已启用)")
+    elif args.plan:
         print("  (Plan->Execute 模式已启用)")
     elif args.react:
         print("  (ReAct 模式已启用)")
@@ -34,7 +37,19 @@ def main():
         # 实例化 Agent 的依赖
         llm_client = LLMClient()
 
-        if args.react:
+        if args.hybrid:
+            system_prompt = (
+                "你是一个采用 Plan + ReAct 混合架构的编程智能体。\n"
+                "你的工作流程分为两个层面：\n"
+                "1. **全局规划**: 任务开始前，你会得到一个初始计划。如果执行过程中遇到重大障碍，计划会被动态更新。\n"
+                "2. **局部决策 (ReAct)**: 对于计划中的每一个步骤，你将采用 ReAct 模式（决策-行动-观察）来执行。\n"
+                "在每一轮执行中：\n"
+                "- **决策 (Decision)**: 分析当前步骤的进度，说明你打算调用什么工具。\n"
+                "- **行动 (Action)**: 调用工具。\n"
+                "- **观察 (Observation)**: 查看工具返回的结果。\n"
+                "请确保在每个步骤中都保持清晰的推理过程。当一个步骤完成后，请明确表示该步骤已完成。"
+            )
+        elif args.react:
             system_prompt = (
                 "你是一个采用 ReAct 架构的编程智能体。你的任务是自主解决编程问题。"
                 "在每一轮，你都需要进行'决策'和'行动'。"
@@ -60,7 +75,7 @@ def main():
         memory = Memory(system_prompt)
         
         # 注入依赖，实例化 Agent
-        agent = Agent(llm_client, memory, planning_mode=args.plan, react_mode=args.react)
+        agent = Agent(llm_client, memory, planning_mode=args.plan, react_mode=args.react, hybrid_mode=args.hybrid)
     except Exception as e:
         print(f"Agent 初始化失败: {e}")
         return

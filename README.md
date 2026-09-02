@@ -42,18 +42,18 @@ python -m coding_agent.main
 启动后，在终端提示符处输入您的编程任务，Agent 将自动开始思考与执行。
 
 ### 4. 启用高级模式 (可选)
-如果希望 Agent 采用“先规划、后执行”的模式来处理复杂任务，可以在启动时增加 `--plan` 参数：
-```bash
-python -m coding_agent.main --plan
-```
+启动时支持多种执行模式：
+- `--plan`: 启用先规划、后执行模式。
+- `--react`: 启用 ReAct 动态推理循环模式。
+- `--hybrid`: 启用 Plan + ReAct 混合架构模式（推荐）。
 
-如果希望 Agent 采用“决策-行动-观察”的 ReAct 模式进行动态推理，可以增加 `--react` 参数：
+示例：
 ```bash
-python -m coding_agent.main --react
+python -m coding_agent.main --hybrid
 ```
 
 ## 🔗 Git 仓库地址
 *(待最终提交时填写)*
 
 ---
-*注：本项目文档和核心能力正根据 `task_all.md` 的路线图逐步完善中，当前已完成至 Task 07。*
+*注：本项目文档和核心能力正根据 `task_all.md` 的路线图逐步完善中，当前已完成至 Task 09。*

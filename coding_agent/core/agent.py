@@ -13,13 +13,15 @@ class Agent:
     Agent 主循环控制器。
     负责接收任务、管理循环迭代、请求 LLM、分发工具调用并返回最终结果。
     """
-    def __init__(self, llm_client: LLMClient, memory: Memory, max_steps: int = 25, timeout_seconds: int = 300, planning_mode: bool = False, react_mode: bool = False):
+    def __init__(self, llm_client: LLMClient, memory: Memory, max_steps: int = 25, timeout_seconds: int = 300, 
+                 planning_mode: bool = False, react_mode: bool = False, hybrid_mode: bool = False):
         self.llm = llm_client
         self.memory = memory
         self.max_steps = max_steps
         self.timeout_seconds = timeout_seconds
-        self.planning_mode = planning_mode
-        self.react_mode = react_mode
+        self.planning_mode = planning_mode or hybrid_mode
+        self.react_mode = react_mode or hybrid_mode
+        self.hybrid_mode = hybrid_mode
         
         # 防死循环机制所需的状态追踪
         self._tool_call_history = defaultdict(int)
@@ -84,10 +86,13 @@ class Agent:
         
         while iteration < self.max_steps:
             iteration += 1
-            print(f"\n--- [Agent 思考轮次 {iteration}] ---")
+            
+            # Hybrid 模式下，如果开启了 ReAct，则每一步的执行逻辑也是 ReAct 风格
+            mode_name = "ReAct-Step" if self.react_mode else "Execute-Step"
+            print(f"\n--- [{mode_name} 轮次 {iteration}] ---")
 
             if time.time() - start_time > self.timeout_seconds:
-                print(f"\n[系统警告]: Agent 达到全局超时限制 ({self.timeout_seconds}秒)，被安全机制强制中断！")
+                print(f"\n[系统警告]: 步骤执行达到全局超时限制 ({self.timeout_seconds}秒)！")
                 return "timeout"
             
             tools = registry.get_openai_schemas()
@@ -101,7 +106,7 @@ class Agent:
             self.memory.add_assistant_message(response_msg)
             
             if response_msg.content:
-                print(f"[Agent 回复]:\n{response_msg.content}")
+                print(f"[Agent {'决策' if self.react_mode else '回复'}]:\n{response_msg.content}")
                 
             if response_msg.tool_calls:
                 # Anti-loop mechanisms
@@ -119,7 +124,7 @@ class Agent:
                 for tool_call in response_msg.tool_calls:
                     call_tuple = (tool_call.function.name, tool_call.function.arguments)
                     if self._tool_call_history[call_tuple] >= 3:
-                        print(f"\n[系统警告]: 工具 {call_tuple[0]} 带相同参数已连续调用 3 次，可能陷入死循环，中断执行！")
+                        print(f"\n[系统警告]: 工具 {call_tuple[0]} 带相同参数已连续调用 3 次，可能陷入死循环！")
                         return "loop_detected"
 
                 parallel_calls = []
@@ -141,8 +146,8 @@ class Agent:
                     tool_call_id, result = self._execute_tool(tool_call)
                     self.memory.add_tool_message(tool_call_id, result)
             else:
-                print("\n[系统]: Agent 认为步骤已完成。")
-                return "completed" # Step completed
+                print("\n[系统]: Agent 认为该步骤已完成。")
+                return "completed"
                 
         return "max_steps_reached"
 
@@ -154,7 +159,8 @@ class Agent:
         print("-" * 50)
         
         if self.planning_mode:
-            print("\n[系统]: 进入规划模式...")
+            mode_type = "Plan + ReAct 混合模式" if self.hybrid_mode else "规划模式"
+            print(f"\n[系统]: 进入 {mode_type}...")
             self.plan = self.planner.create_plan(user_input)
             
             if not self.plan:
@@ -162,23 +168,43 @@ class Agent:
                 self._run_without_plan(user_input)
                 return
 
-            print("\n[系统]: 已生成计划，开始执行...")
+            print("\n[系统]: 已生成计划，开始按步骤执行...")
             print(json.dumps(self.plan, indent=2, ensure_ascii=False))
             print("-" * 50)
             
-            for step in self.plan["steps"]:
+            i = 0
+            while i < len(self.plan["steps"]):
+                step = self.plan["steps"][i]
+                if step["status"] == "completed":
+                    i += 1
+                    continue
+
                 step["status"] = "in_progress"
                 status = self._execute_step(step)
+                
                 if status == "completed":
                     step["status"] = "completed"
                     print(f"\n--- [步骤 {step['id']} 完成] ---")
+                    i += 1
                 else:
                     step["status"] = "failed"
                     print(f"\n--- [步骤 {step['id']} 失败，状态: {status}] ---")
-                    print("\n[系统]: 由于步骤失败，Agent 停止执行。")
-                    break # Stop execution if a step fails
+                    
+                    if self.hybrid_mode:
+                        print("\n[系统]: 触发混合模式下的计划动态调整...")
+                        new_plan = self.planner.update_plan(user_input, self.plan, self.memory.get_messages())
+                        if new_plan:
+                            print("\n[系统]: 计划已更新！")
+                            print(json.dumps(new_plan, indent=2, ensure_ascii=False))
+                            self.plan = new_plan
+                            # 重新从第一个未完成的步骤开始（或者模型返回的步骤开始）
+                            i = 0 
+                            continue
+                    
+                    print("\n[系统]: 由于步骤失败且无法自动调整计划，Agent 停止执行。")
+                    break 
             
-            print("\n[系统]: 所有计划步骤已执行完毕。")
+            print("\n[系统]: 任务执行流程结束。")
 
         elif self.react_mode:
             self._run_react_mode(user_input)

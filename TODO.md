@@ -10,14 +10,15 @@
 - Task 06: 防死循环机制
 - Task 07: Plan → Execute 架构
 - Task 08: ReAct 架构
+- Task 09: Plan + ReAct 混合架构
 
 ## Current
 
-- Task 09: Plan + ReAct 混合架构
+- Task 10: 全链路 Trace / Logging
 
 ## Next
 
-- Task 10: 全链路 Trace / Logging
+- Task 11: 上下文管理与 Token Budget
 
 ## Blocked
 
