@@ -33,7 +33,7 @@ class Planner:
         self.llm = llm_client
 
     def create_plan(self, user_input: str):
-        memory = Memory(PLANNER_SYSTEM_PROMPT, llm_client=self.llm)
+        memory = Memory(PLANNER_SYSTEM_PROMPT, dynamic_instructions="", llm_client=self.llm)
         memory.add_message("user", user_input)
         
         return self._get_plan_from_llm(memory)
@@ -43,6 +43,7 @@ class Planner:
         根据当前进度 and 错误情况更新计划。
         """
         memory = Memory(PLANNER_SYSTEM_PROMPT + "\n\nYou are updating an existing plan because a step failed or new information was discovered. Adjust the remaining steps accordingly.", 
+                        dynamic_instructions="",
                         llm_client=self.llm)
         
         # 将当前上下文摘要提供给 Planner

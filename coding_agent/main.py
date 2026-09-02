@@ -20,6 +20,7 @@ def main():
     group.add_argument('--react', action='store_true', help='Enable ReAct mode.')
     group.add_argument('--hybrid', action='store_true', help='Enable Plan + ReAct hybrid mode.')
     parser.add_argument('--token-budget', type=int, default=4000, help='Max tokens before context compression.')
+    parser.add_argument('task', type=str, nargs='?', help='The programming task for the agent.')
     args = parser.parse_args()
 
     print("=======================================")
@@ -56,8 +57,12 @@ def main():
         print(f"Agent 初始化失败: {e}")
         return
     
-    print("\n准备就绪。")
-    user_input = input("\n请输入您的编程任务: ")
+    if args.task:
+        user_input = args.task
+    else:
+        print("\n准备就绪。")
+        user_input = input("\n请输入您的编程任务: ")
+    
     # user_input = "读取一个肯定不存在的文件 'non_existent_file.txt'"
     agent.run(user_input)
 

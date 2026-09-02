@@ -19,7 +19,7 @@
 1.  Agent 首次调用 `write_file`，由于缺少 `content`，`tool.validate` 抛出异常，被 `_execute_tool` 捕获并包装为 `E_TOOL_INVALID_ARGS` 错误。
 2.  Agent 的主循环检测到该错误，从 `ApiRegistry` 获取 `write_file` 的完整文档，并将其添加到 `memory` 中。
 3.  在下一轮，LLM 接收到了包含完整文档的上下文，从而理解了 `content` 是必填项。
-4.  LLM 生成了正确的、包含 `content` 参数的 `write_file` 调用。
+4.  LLM 生成了正确的、包含 `content` 参数 of `write_file` 调用。
 5.  任务成功执行。
 遇到的问题：无。
 解决方法：无。
@@ -108,3 +108,25 @@
 解决方法：无。
 是否回归测试：是。
 结论：Task 17 成功将 Agent 的能力从“松散的原子工具”升级为“结构化的技能组合”，极大提升了其执行复杂连贯操作的可靠性。
+
+---
+
+## Task 18: 模块化架构 + 可插拔组件
+日期：2026-09-02
+目标：对 Agent 核心逻辑进行深度重构，实现执行引擎与容器的完全分离，提升代码的可维护性和扩展性。
+修改文件：`coding_agent/runtime/runtime.py`, `coding_agent/core/agent.py`, `coding_agent/main.py`, `ARCHITECTURE.md`
+核心设计：
+1.  **引入 Runtime 概念**: 新增 `coding_agent/runtime/runtime.py`，作为 Agent 的核心执行引擎。将原 `Agent` 类中的 Agent Loop (ReAct, Planning, Standard 模式)、工具执行、错误处理、防死循环机制等全部迁移至 `Runtime` 类中。
+2.  **Agent 类瘦身**: 重构 `coding_agent/core/agent.py`。`Agent` 类现在仅作为一个轻量级的容器，负责初始化 `Runtime` 并作为对外暴露的统一接口。
+3.  **解耦关注点**: 通过这种重构，实现了“大脑”（Runtime 的逻辑控制）与“身体”（Agent 的外部接口）的分离。`Runtime` 专注于如何执行任务，而 `Agent` 专注于如何被外部系统集成。
+4.  **架构文档同步**: 更新 `ARCHITECTURE.md`，详细描述了新的模块化架构和组件职责。
+测试命令：使用 `main.py` 运行标准任务，验证功能完整性。
+测试结果：
+1.  Agent 能够正常启动并接收任务。
+2.  内部逻辑成功委托给 `Runtime` 执行。
+3.  ReAct 和 Planning 模式在重构后依然工作正常。
+4.  防死循环和追踪系统与新架构无缝集成。
+遇到的问题：无。
+解决方法：无。
+是否回归测试：是。
+结论：Task 18 完成了项目迄今为止最大规模的一次代码结构重构。通过将核心执行引擎独立为 `Runtime` 模块，我们不仅提高了代码的清晰度，也为未来引入更复杂的 Agent 协作模式（如多 Agent 共享同一个 Runtime 或同一个 Agent 动态切换不同的 Runtime）奠定了坚实的工程基础。
