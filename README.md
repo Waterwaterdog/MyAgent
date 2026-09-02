@@ -65,4 +65,3 @@ python -m coding_agent.main --hybrid
 [https://github.com/Waterwaterdog/MyAgent](https://github.com/Waterwaterdog/MyAgent)
 
 ---
-*注：本项目已根据 `task_all.md` 的路线图全部完成（Task 01 - Task 20）。项目已进入最终交付状态。*
