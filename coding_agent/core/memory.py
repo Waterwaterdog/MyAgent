@@ -99,13 +99,9 @@ class MemoryManager:
         except Exception as e:
             print(f"[系统警告]: 记忆提取失败: {e}")
 
-    def get_memory_context(self) -> str:
-        """
-        获取组装好的记忆上下文，用于注入 Prompt。
-        """
+    def get_mid_term_context(self) -> str:
+        """获取中期记忆上下文"""
         parts = []
-        
-        # Mid-term
         if any(self.mid_term.values()):
             parts.append("## Session Insights (Mid-term Memory)")
             if self.mid_term["project_conventions"]:
@@ -116,13 +112,21 @@ class MemoryManager:
                 parts.append("- Known Errors to Avoid: " + "; ".join(self.mid_term["known_errors"]))
             if self.mid_term["current_progress"]:
                 parts.append(f"- Progress: {self.mid_term['current_progress']}")
-        
-        # Long-term
+        return "\n".join(parts)
+
+    def get_long_term_context(self) -> str:
+        """获取长期记忆上下文"""
+        parts = []
         if self.long_term["user_preferences"] or self.long_term["reusable_knowledge"]:
             parts.append("## Persistent Knowledge (Long-term Memory)")
             if self.long_term["user_preferences"]:
                 parts.append("- User Preferences: " + "; ".join(self.long_term["user_preferences"]))
             if self.long_term["reusable_knowledge"]:
                 parts.append("- Reusable Knowledge: " + "; ".join(self.long_term["reusable_knowledge"]))
-                
-        return "\n".join(parts) if parts else ""
+        return "\n".join(parts)
+
+    def get_memory_context(self) -> str:
+        """获取组装好的完整记忆上下文 (为了向后兼容)"""
+        long_term = self.get_long_term_context()
+        mid_term = self.get_mid_term_context()
+        return "\n\n".join(filter(None, [long_term, mid_term]))

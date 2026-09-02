@@ -98,7 +98,7 @@ ReAct 架构的优势在于其**动态适应性**，它能够处理那些在开�
 - **静态前缀 (Static Prefix)**: 在 `coding_agent/core/prompt.py` 中定义。这部分包含 Agent 的身份定义、通用的工具使用规范、标准化的输出格式、安全规则以及错误处理协议。这些内容在整个任务生命周期中是完全不变的，作为所有请求的起始部分（Prefix），极大地提高了 KV Cache 的命中率，降低了首字延迟。
 - **动态指令 (Dynamic Instructions)**: 根据用户选择的运行模式（Standard, ReAct, Plan, Hybrid）动态生成的指令。这部分内容在选定模式后也是相对稳定的。
 - **任务感知上下文 (Task Context)**: 包括当前的任务计划（Plan）、对话摘要（Summary）以及最近的对话历史。这部分内容会随着任务推进而变化，被放置在 Prompt 的后部。
-- **分层注入**: `ContextManager` 在组装消息列表时，严格遵循 `STATIC PREFIX -> DYNAMIC MODE -> PLAN/SUMMARY -> DYNAMIC HISTORY` 的顺序。这种设计不仅在工程上实现了责任分离，更在底层机制上对 Token 消耗 and 响应速度进行了优化。
+- **分层注入与稳定性排序**: `ContextManager` 在组装消息列表时，遵循 `STATIC PREFIX -> DYNAMIC MODE -> LONG_TERM -> MID_TERM -> PLAN -> SUMMARY -> HISTORY` 的稳定性排序。这种设计通过将最稳定的信息放置在 Prompt 的前部，最大化了模型侧 KV Cache 的命中率，从而在长对话中显著降低了首字延迟和推理开销。
 
 ---
 

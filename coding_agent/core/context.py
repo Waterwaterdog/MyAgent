@@ -31,15 +31,19 @@ class ContextManager:
         self.messages: List[Dict[str, Any]] = []
         self.summary: Optional[str] = None
         self.current_plan: Optional[Dict] = None
-        self.memory_context: Optional[str] = None
+        self.long_term_memory: Optional[str] = None
+        self.mid_term_memory: Optional[str] = None
         
     def update_plan(self, plan: Dict):
         """更新当前执行计划，作为动态上下文的一部分"""
         self.current_plan = plan
 
-    def update_memory(self, memory_str: str):
+    def update_memory(self, long_term: str = None, mid_term: str = None):
         """更新从中长期记忆中检索出的信息"""
-        self.memory_context = memory_str
+        if long_term is not None:
+            self.long_term_memory = long_term
+        if mid_term is not None:
+            self.mid_term_memory = mid_term
 
     def add_message(self, role: str, content: str = None, **kwargs):
         """通用消息追加方法"""
@@ -75,8 +79,10 @@ class ContextManager:
             total += estimate_tokens(json.dumps(self.current_plan))
             
         # 记忆部分
-        if self.memory_context:
-            total += estimate_tokens(self.memory_context)
+        if self.long_term_memory:
+            total += estimate_tokens(self.long_term_memory)
+        if self.mid_term_memory:
+            total += estimate_tokens(self.mid_term_memory)
             
         # 对话历史部分
         for msg in self.messages:
@@ -96,38 +102,46 @@ class ContextManager:
 
     def get_messages(self) -> List[Dict[str, Any]]:
         """
-        组装对话历史，遵循 STATIC PREFIX -> Dynamic Context 结构。
+        组装对话历史，严格遵循稳定性排序以最大化 KV Cache 复用：
+        STATIC PREFIX -> DYNAMIC MODE -> LONG_TERM -> MID_TERM -> PLAN -> SUMMARY -> HISTORY
         """
         result = []
         
-        # 1. STATIC PREFIX (保持在最前面以最大化 KV Cache 复用)
+        # 1. STATIC PREFIX (最稳定)
         result.append({"role": "system", "content": self.static_prompt})
         
-        # 2. DYNAMIC MODE INSTRUCTIONS
+        # 2. DYNAMIC MODE INSTRUCTIONS (Session 内稳定)
         result.append({"role": "system", "content": self.dynamic_instructions})
         
-        # 3. CURRENT PLAN
+        # 3. LONG-TERM MEMORY (极稳定)
+        if self.long_term_memory:
+            result.append({
+                "role": "system",
+                "content": f"## 长期知识沉淀 (Long-term Memory)\n{self.long_term_memory}"
+            })
+            
+        # 4. MID-TERM MEMORY (相对稳定)
+        if self.mid_term_memory:
+            result.append({
+                "role": "system",
+                "content": f"## 会话状态感知 (Mid-term Memory)\n{self.mid_term_memory}"
+            })
+
+        # 5. CURRENT PLAN (可能更新)
         if self.current_plan:
              result.append({
                  "role": "system", 
                  "content": f"## 当前任务计划\n{json.dumps(self.current_plan, ensure_ascii=False, indent=2)}"
              })
         
-        # 4. MEMORY CONTEXT (Mid-term / Long-term)
-        if self.memory_context:
-            result.append({
-                "role": "system",
-                "content": f"## 相关记忆与知识\n{self.memory_context}"
-            })
-        
-        # 5. SUMMARY (如果有)
+        # 6. SUMMARY (压缩时更新)
         if self.summary:
             result.append({
                 "role": "system", 
-                "content": f"以下是此前对话历史的摘要，供参考：\n{self.summary}"
+                "content": f"以下是此前对话历史的语义摘要：\n{self.summary}"
             })
             
-        # 5. DYNAMIC HISTORY (User/Assistant/Tool messages)
+        # 7. DYNAMIC HISTORY (每轮变化)
         result.extend(self.messages)
             
         return result

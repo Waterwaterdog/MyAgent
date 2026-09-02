@@ -68,3 +68,22 @@
 解决方法：在解析前对返回内容进行了 strip 处理，并支持 ` ```json ` 标签的剥离。
 是否回归测试：是。
 结论：Task 15 为 Agent 注入了“灵魂”，使其不再仅仅是单次任务的处理器，而是能够随着使用不断积累经验的智能实体。三层记忆架构在保证响应效率的同时，实现了知识的有效过滤与沉淀，极大地增强了 Agent 在复杂编程任务中的逻辑连贯性。
+
+---
+
+## Task 16: Memory + KV Cache 复用策略
+日期：2026-09-02
+目标：优化 Prompt 注入顺序，确保最稳定的信息位于前部，以最大化模型侧 KV Cache 的命中率，降低推理成本。
+修改文件：`coding_agent/core/memory.py`, `coding_agent/core/context.py`, `coding_agent/core/agent.py`
+核心设计：
+1.  **记忆细化检索**: 修改 `MemoryManager`，支持分别获取长期（跨任务稳定）和中期（会话内稳定）记忆上下文。
+2.  **稳定性排序注入**: 重构 `ContextManager.get_messages()`。严格按照 `STATIC PREFIX` (恒定) -> `DYNAMIC MODE` (Session 稳定) -> `LONG-TERM MEMORY` (极稳定) -> `MID-TERM MEMORY` (相对稳定) -> `PLAN` -> `SUMMARY` -> `HISTORY` 的顺序组装 Prompt。
+3.  **缓存优化逻辑**: 通过将高频变化的对话历史放在最后，而将基本不变的身份定义和长期知识放在最前，确保了在多轮交互中，Prompt 的公共前缀长度最大化，从而触发服务端的 KV Cache 复用。
+测试命令：`python d:\简历\夏令营\南京大学\南软项目\test_kv_order.py`
+测试结果：
+1.  验证了 Prompt 组装后的消息列表完全符合预设的稳定性降序排列。
+2.  即使在 Plan 更新或 History 增长的情况下，Prompt 的前几条关键消息（Prefix）依然保持绝对静止。
+遇到的问题：无。
+解决方法：无。
+是否回归测试：是。
+结论：Task 16 在工程层面对 Prompt 进行了“稳定性对齐”。虽然具体的 Cache 命中由模型厂商控制，但通过保证输入 Prefix 的极致稳定性，我们从客户端角度提供了最优的复用前提，这对于提升长对话任务的响应速度至关重要。

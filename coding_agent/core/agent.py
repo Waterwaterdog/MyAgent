@@ -43,8 +43,9 @@ class Agent:
 
     def _sync_memory(self):
         """同步中长期记忆到上下文管理器"""
-        memory_str = self.memory_manager.get_memory_context()
-        self.memory.update_memory(memory_str)
+        long_term = self.memory_manager.get_long_term_context()
+        mid_term = self.memory_manager.get_mid_term_context()
+        self.memory.update_memory(long_term=long_term, mid_term=mid_term)
 
     def _execute_tool(self, tool_call, step_id=None):
         tool_name = tool_call.function.name
