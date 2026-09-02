@@ -115,3 +115,21 @@
 解决方法：无。
 是否回归测试：是。
 结论：上下文管理是 Coding Agent 走向实用化的关键一步。通过 Token 预算和动态总结机制，我们成功解决了上下文膨胀导致的成本上升和长任务失败问题。这种“保留摘要 + 保留近期记忆”的策略在节省空间的同时最大程度维持了 Agent 的智能水平。
+
+## Task 12: Tool Result 压缩
+日期：2026-09-02
+目标：在工具返回巨大输出时，通过压缩和摘要，避免将完整结果全部送入 LLM 上下文，以节省 Token 并防止超长。
+修改文件：`coding_agent/core/result_analyzer.py`, `coding_agent/core/agent.py`, `coding_agent/core/test_result_analyzer.py`
+核心设计：
+1.  **ResultAnalyzer 模块**: 新增 `coding_agent/core/result_analyzer.py`，定义了 `ResultAnalyzer` 类。该类负责根据工具名称和输出类型，对超长的工具结果进行智能压缩。
+2.  **压缩策略**:
+    *   **通用截断**: 对普通的长字符串，采用“保留头部 + 省略标记 + 保留尾部”的策略进行截断。
+    *   **特定工具优化**: 针对 `run_command` 返回的结构化输出（包含 stdout, stderr, exit_code），分别对 stdout 和 stderr 进行压缩，同时保留完整的 exit_code，生成一个对 LLM 更友好的结构化摘要。
+3.  **Agent 集成**: 在 `Agent._execute_tool` 方法中，在工具执行之后、将结果添加到上下文之前，调用 `ResultAnalyzer.compress` 方法。原始的、未压缩的结果则被完整地记录到 Trace 日志中，确保了调试所需信息的完整性。
+4.  **单元测试**: 编写了 `test_result_analyzer.py`，覆盖了短字符串、长字符串和 `run_command` 结构化输出等场景，确保了压缩逻辑的正确性。
+测试命令：`python -m unittest coding_agent/core/test_result_analyzer.py`
+测试结果：所有测试用例均通过。测试证明，对于超长输出，`ResultAnalyzer` 能够有效地将其压缩到预设的 `max_output_tokens` 长度以下，并且针对 `run_command` 的特定格式化也符合预期。
+遇到的问题：初版 `ResultAnalyzer` 的逻辑在处理 `run_command` 的字典输出时存在 bug，会错误地将其作为普通字符串处理。通过调整类型判断的顺序，该问题已修复。
+解决方法：调整 `compress` 方法内部的 `if/else` 逻辑，优先处理 `run_command` 的特殊情况。
+是否回归测试：是。
+结论：Tool Result 压缩是继上下文总结（Task 11）之后，另一个关键的上下文优化手段。它有效防止了因工具输出（如 `cat` 一个大文件或 `ls -R`）过大而导致的上下文爆炸和 Token 浪费。该机制确保了 Agent 在与外部环境交互时的健壮性，同时将原始信息保留在 Trace 中，做到了“对模型节约，对调试开放”。

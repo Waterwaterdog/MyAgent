@@ -8,6 +8,7 @@ from coding_agent.tools.registry import registry
 from coding_agent.core.error import AgentError
 from coding_agent.planning.planner import Planner
 from coding_agent.tracing.tracer import Tracer
+from coding_agent.core.result_analyzer import ResultAnalyzer
 
 class Agent:
     """
@@ -23,6 +24,7 @@ class Agent:
         self.planning_mode = planning_mode or hybrid_mode
         self.react_mode = react_mode or hybrid_mode
         self.hybrid_mode = hybrid_mode
+        self.result_analyzer = ResultAnalyzer()
         
         # 防死循环机制所需的状态追踪
         self._tool_call_history = defaultdict(int)
@@ -94,12 +96,16 @@ class Agent:
                 error_code = "E_INTERNAL"
         
         latency = time.time() - start_time
+        # Log the original, uncompressed result to the tracer
         if self.tracer:
-            summary = result[:200] + "..." if len(result) > 200 else result
-            self.tracer.log_tool_result(tool_name, summary, latency, step=step_id, error_code=error_code)
+            raw_result_summary = str(result)[:500] + ("..." if len(str(result)) > 500 else "")
+            self.tracer.log_tool_result(tool_name, raw_result_summary, latency, step=step_id, error_code=error_code)
 
-        print(f"[执行结果]:\n{result[:500]}{'...' if len(result)>500 else ''}")
-        return tool_call.id, result
+        # Compress the result before adding it to memory
+        compressed_result = self.result_analyzer.compress(result, tool_name)
+
+        print(f"[执行结果]:\n{compressed_result[:500]}{'...' if len(compressed_result)>500 else ''}")
+        return tool_call.id, compressed_result
 
     def _execute_step(self, step):
         print(f"\n--- [执行步骤 {step['id']}: {step['description']}] ---")
