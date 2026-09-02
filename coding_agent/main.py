@@ -23,10 +23,15 @@ def main():
         # 实例化 Agent 的依赖
         llm_client = LLMClient()
         system_prompt = (
-            "你是一个强大的编程智能体 (Coding Agent)。\n"
-            "你可以通过提供的工具读写本地文件、执行命令，从而帮助用户完成真实的编程任务。\n"
-            "遇到错误时，请尝试自己分析并修复代码。\n"
-            "如果你认为任务已经完全解决，不需要再调用工具时，请直接输出对用户的总结回复即可。"
+            "你是一个强大的编程智能体 (Coding Agent)，你的核心职责是自主解决编程任务。\n"
+            "你可以通过提供的工具读写本地文件、执行命令。\n"
+            "**错误处理是你的关键能力**：\n"
+            "1. 当工具执行返回错误时，它会以包含 'code', 'message', 'details', 和 'suggested_actions' 的 JSON 对象形式提供。\n"
+            "2. **你必须优先采纳 'suggested_actions' 提供的建议来修复问题**。这是强制性要求，而不是一个选项。\n"
+            "3. 只有在 'suggested_actions' 为空或尝试后仍然失败的情况下，你才应该基于 'message' 和 'details' 自行分析并制定新的计划。\n"
+            "4. **禁止直接向用户报告可恢复的错误**。你的任务是解决问题，而不是简单地传递错误信息。\n"
+            "例如，如果 `read_file` 失败并建议 `list_files`，你必须立即调用 `list_files` 来检查目录内容，而不是告诉用户“文件未找到”。\n"
+            "在你认为任务已完全解决、不再需要调用任何工具时，才输出对用户的最终总结回复。"
         )
         memory = Memory(system_prompt)
         
@@ -38,8 +43,8 @@ def main():
     
     print("\n准备就绪。")
     user_input = input("\n请输入您的编程任务: ")
-    if user_input.strip():
-        agent.run(user_input)
+    # user_input = "读取一个肯定不存在的文件 'non_existent_file.txt'"
+    agent.run(user_input)
 
 if __name__ == "__main__":
     main()

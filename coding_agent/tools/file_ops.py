@@ -16,27 +16,6 @@ def list_files(path: str = ".") -> str:
     """列出指定目录下的所有文件和文件夹"""
     try:
         safe_path = _ensure_safe_path(path)
-        if not os.path.exists(safe_path):
-            raise AgentError(
-                code="E_FILE_NOT_FOUND",
-                type="FileError",
-                message=f"路径 {path} 不存在。",
-                details=f"The path '{safe_path}' does not exist.",
-                retryable=False,
-                suggested_actions=["Verify the file path.", "List files in the directory to check if the file exists."]
-            )
-        if not os.path.isdir(safe_path):
-            raise AgentError(
-                code="E_FILE_NOT_FOUND",
-                type="FileError",
-                message=f"{path} 不是一个目录。",
-                details=f"The path '{safe_path}' is not a directory.",
-                retryable=False,
-                suggested_actions=["Verify the file path."]
-            )
-        
-        items = os.listdir(safe_path)
-        return "\n".join(items) if items else "目录为空"
     except PermissionError as e:
         raise AgentError(
             code="E_FILE_PERMISSION",
@@ -45,6 +24,29 @@ def list_files(path: str = ".") -> str:
             retryable=False,
             suggested_actions=["Check file permissions."]
         )
+
+    if not os.path.exists(safe_path):
+        raise AgentError(
+            code="E_FILE_NOT_FOUND",
+            type="FileError",
+            message=f"路径 {path} 不存在。",
+            details=f"The path '{safe_path}' does not exist.",
+            retryable=False,
+            suggested_actions=["Verify the file path.", "List files in the directory to check if the file exists."]
+        )
+    if not os.path.isdir(safe_path):
+        raise AgentError(
+            code="E_FILE_NOT_FOUND",
+            type="FileError",
+            message=f"{path} 不是一个目录。",
+            details=f"The path '{safe_path}' is not a directory.",
+            retryable=False,
+            suggested_actions=["Verify the file path."]
+        )
+    
+    try:
+        items = os.listdir(safe_path)
+        return "\n".join(items) if items else "目录为空"
     except Exception as e:
         raise AgentError(
             code="E_INTERNAL",
@@ -59,31 +61,6 @@ def read_file(path: str) -> str:
     """读取指定文件内容"""
     try:
         safe_path = _ensure_safe_path(path)
-        if not os.path.exists(safe_path):
-            raise AgentError(
-                code="E_FILE_NOT_FOUND",
-                type="FileError",
-                message=f"文件 {path} 不存在。",
-                details=f"The file '{safe_path}' does not exist.",
-                retryable=False,
-                suggested_actions=["Verify the file path.", "List files in the directory to check if the file exists."]
-            )
-        if not os.path.isfile(safe_path):
-            raise AgentError(
-                code="E_FILE_NOT_FOUND",
-                type="FileError",
-                message=f"{path} 不是一个文件。",
-                details=f"The path '{safe_path}' is not a file.",
-                retryable=False,
-                suggested_actions=["Verify the file path."]
-            )
-            
-        with open(safe_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            # 防止输出过长撑爆上下文
-            if len(content) > 10000:
-                return content[:10000] + "\n...[内容过长已截断]..."
-            return content
     except PermissionError as e:
         raise AgentError(
             code="E_FILE_PERMISSION",
@@ -92,6 +69,33 @@ def read_file(path: str) -> str:
             retryable=False,
             suggested_actions=["Check file permissions."]
         )
+
+    if not os.path.exists(safe_path):
+        raise AgentError(
+            code="E_FILE_NOT_FOUND",
+            type="FileError",
+            message=f"文件 {path} 不存在。",
+            details=f"The file '{safe_path}' does not exist.",
+            retryable=False,
+            suggested_actions=["Verify the file path.", "List files in the directory to check if the file exists."]
+        )
+    if not os.path.isfile(safe_path):
+        raise AgentError(
+            code="E_FILE_NOT_FOUND",
+            type="FileError",
+            message=f"{path} 不是一个文件。",
+            details=f"The path '{safe_path}' is not a file.",
+            retryable=False,
+            suggested_actions=["Verify the file path."]
+        )
+        
+    try:
+        with open(safe_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            # 防止输出过长撑爆上下文
+            if len(content) > 10000:
+                return content[:10000] + "\n...[内容过长已截断]..."
+            return content
     except Exception as e:
         raise AgentError(
             code="E_INTERNAL",
@@ -106,11 +110,6 @@ def write_file(path: str, content: str) -> str:
     """创建或覆盖指定文件"""
     try:
         safe_path = _ensure_safe_path(path)
-        # 确保所在目录存在
-        os.makedirs(os.path.dirname(safe_path), exist_ok=True)
-        with open(safe_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        return f"成功写入文件: {path}"
     except PermissionError as e:
         raise AgentError(
             code="E_FILE_PERMISSION",
@@ -119,6 +118,13 @@ def write_file(path: str, content: str) -> str:
             retryable=False,
             suggested_actions=["Check file permissions."]
         )
+
+    try:
+        # 确保所在目录存在
+        os.makedirs(os.path.dirname(safe_path), exist_ok=True)
+        with open(safe_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return f"成功写入文件: {path}"
     except Exception as e:
         raise AgentError(
             code="E_FILE_WRITE",
@@ -133,33 +139,6 @@ def edit_file(path: str, old_str: str, new_str: str) -> str:
     """修改文件内容：通过字符串精确查找替换"""
     try:
         safe_path = _ensure_safe_path(path)
-        if not os.path.exists(safe_path):
-            raise AgentError(
-                code="E_FILE_NOT_FOUND",
-                type="FileError",
-                message=f"文件 {path} 不存在。",
-                details=f"The file '{safe_path}' does not exist.",
-                retryable=False,
-                suggested_actions=["Verify the file path.", "List files in the directory to check if the file exists."]
-            )
-            
-        with open(safe_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            
-        if old_str not in content:
-            raise AgentError(
-                code="E_FILE_WRITE",
-                type="FileError",
-                message=f"在文件 {path} 中未找到指定的旧字符串。请检查是否完全匹配。",
-                retryable=False
-            )
-            
-        # 只替换第一次出现的，防止意外替换多处
-        new_content = content.replace(old_str, new_str, 1)
-        
-        with open(safe_path, 'w', encoding='utf-8') as f:
-            f.write(new_content)
-        return f"成功修改文件: {path}"
     except PermissionError as e:
         raise AgentError(
             code="E_FILE_PERMISSION",
@@ -168,6 +147,45 @@ def edit_file(path: str, old_str: str, new_str: str) -> str:
             retryable=False,
             suggested_actions=["Check file permissions."]
         )
+
+    if not os.path.exists(safe_path):
+        raise AgentError(
+            code="E_FILE_NOT_FOUND",
+            type="FileError",
+            message=f"文件 {path} 不存在。",
+            details=f"The file '{safe_path}' does not exist.",
+            retryable=False,
+            suggested_actions=["Verify the file path.", "List files in the directory to check if the file exists."]
+        )
+        
+    try:
+        with open(safe_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except Exception as e:
+        raise AgentError(
+            code="E_INTERNAL",
+            type="FileError",
+            message=f"读取文件失败: {e}",
+            details=str(e),
+            retryable=False,
+            suggested_actions=["Inspect the agent's logs."]
+        )
+        
+    if old_str not in content:
+        raise AgentError(
+            code="E_FILE_WRITE",
+            type="FileError",
+            message=f"在文件 {path} 中未找到指定的旧字符串。请检查是否完全匹配。",
+            retryable=False
+        )
+        
+    # 只替换第一次出现的，防止意外替换多处
+    new_content = content.replace(old_str, new_str, 1)
+    
+    try:
+        with open(safe_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        return f"成功修改文件: {path}"
     except Exception as e:
         raise AgentError(
             code="E_FILE_WRITE",

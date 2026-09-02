@@ -6,14 +6,15 @@
 - Task 02: Tool Schema + Tool Factory
 - Task 03: Tool 串行 / 并行执行
 - Task 04: 标准化 Error Code + 错误包装
+- Task 05: Error → Model 决策闭环
 
 ## Current
 
-- Task 05: Error → Model 决策闭环
+- Task 06: 防死循环机制
 
 ## Next
 
-- Task 06: 防死循环机制
+- Task 07: Plan → Execute 架构
 
 ## Blocked
 
