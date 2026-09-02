@@ -14,14 +14,15 @@
 - Task 10: 全链路 Trace / Logging
 - Task 11: 上下文管理与 Token Budget
 - Task 12: Tool Result 压缩
+- Task 13: API 摘要与 API 文档注入
 
 ## Current
 
-- Task 13: API 摘要与 API 文档注入
+- Task 14: Prompt 静态/动态分离
 
 ## Next
 
-- Task 14: Prompt 静态/动态分离
+- Task 15: Memory：短期/中期/长期
 
 ## Blocked
 

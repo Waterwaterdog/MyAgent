@@ -4,7 +4,7 @@ import concurrent.futures
 from collections import defaultdict
 from coding_agent.core.model_client import LLMClient
 from coding_agent.core.context import Memory
-from coding_agent.tools.registry import registry
+from coding_agent.tools.registry import registry, api_registry
 from coding_agent.core.error import AgentError
 from coding_agent.planning.planner import Planner
 from coding_agent.tracing.tracer import Tracer
@@ -105,7 +105,7 @@ class Agent:
         compressed_result = self.result_analyzer.compress(result, tool_name)
 
         print(f"[执行结果]:\n{compressed_result[:500]}{'...' if len(compressed_result)>500 else ''}")
-        return tool_call.id, compressed_result
+        return tool_call.id, compressed_result, error_code
 
     def _execute_step(self, step):
         print(f"\n--- [执行步骤 {step['id']}: {step['description']}] ---")
@@ -125,7 +125,7 @@ class Agent:
                 print(f"\n[系统警告]: 步骤执行达到全局超时限制 ({self.timeout_seconds}秒)！")
                 return "timeout"
             
-            tools = registry.get_openai_schemas()
+            tools = api_registry.get_all_summaries()
             
             # 在发送请求前检查 Token 预算并触发压缩
             if self.memory.get_total_tokens() > self.memory.token_budget:
@@ -190,12 +190,22 @@ class Agent:
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     # 并行执行时传入 step_id
                     parallel_results = list(executor.map(lambda tc: self._execute_tool(tc, step_id=step["id"]), parallel_calls))
-                    for tool_call_id, result in parallel_results:
+                    for tool_call_id, result, error_code in parallel_results:
                         self.memory.add_tool_message(tool_call_id, result)
+                        if error_code in ["E_TOOL_NOT_FOUND", "E_TOOL_INVALID_ARGS"]:
+                            tool_name = response_msg.tool_calls[int(tool_call_id.split('_')[-1])].function.name
+                            full_schema = api_registry.get_full_schema(tool_name)
+                            if full_schema:
+                                self.memory.add_message("system", f"错误: 对工具 {tool_name} 的调用失败。这是该工具的完整文档，请修正你的调用方法:\n{json.dumps(full_schema, ensure_ascii=False, indent=2)}")
 
                 for tool_call in serial_calls:
-                    tool_call_id, result = self._execute_tool(tool_call, step_id=step["id"])
+                    tool_call_id, result, error_code = self._execute_tool(tool_call, step_id=step["id"])
                     self.memory.add_tool_message(tool_call_id, result)
+                    if error_code in ["E_TOOL_NOT_FOUND", "E_TOOL_INVALID_ARGS"]:
+                        tool_name = tool_call.function.name
+                        full_schema = api_registry.get_full_schema(tool_name)
+                        if full_schema:
+                            self.memory.add_message("system", f"错误: 对工具 {tool_name} 的调用失败。这是该工具的完整文档，请修正你的调用方法:\n{json.dumps(full_schema, ensure_ascii=False, indent=2)}")
             else:
                 print("\n[系统]: Agent 认为该步骤已完成。")
                 return "completed"
@@ -303,7 +313,7 @@ class Agent:
                 print(f"\n[系统警告]: Agent 达到全局超时限制 ({self.timeout_seconds}秒)，被安全机制强制中断！")
                 break
             
-            tools = registry.get_openai_schemas()
+            tools = api_registry.get_all_summaries()
             
             # 在发送请求前检查 Token 预算并触发压缩
             if self.memory.get_total_tokens() > self.memory.token_budget:
@@ -372,13 +382,24 @@ class Agent:
                 
                 # The results of these executions are the "Observation"
                 with concurrent.futures.ThreadPoolExecutor() as executor:
+                    # The map function now returns a tuple (tool_call_id, result, error_code)
                     parallel_results = list(executor.map(lambda tc: self._execute_tool(tc, step_id=iteration), parallel_calls))
-                    for tool_call_id, result in parallel_results:
+                    for tool_call_id, result, error_code in parallel_results:
                         self.memory.add_tool_message(tool_call_id, result)
+                        if error_code in ["E_TOOL_NOT_FOUND", "E_TOOL_INVALID_ARGS"]:
+                            tool_name = response_msg.tool_calls[int(tool_call_id.split('_')[-1])].function.name
+                            full_schema = api_registry.get_full_schema(tool_name)
+                            if full_schema:
+                                self.memory.add_message("system", f"错误: 对工具 {tool_name} 的调用失败。这是该工具的完整文档，请修正你的调用方法:\n{json.dumps(full_schema, ensure_ascii=False, indent=2)}")
 
                 for tool_call in serial_calls:
-                    tool_call_id, result = self._execute_tool(tool_call, step_id=iteration)
+                    tool_call_id, result, error_code = self._execute_tool(tool_call, step_id=iteration)
                     self.memory.add_tool_message(tool_call_id, result)
+                    if error_code in ["E_TOOL_NOT_FOUND", "E_TOOL_INVALID_ARGS"]:
+                        tool_name = tool_call.function.name
+                        full_schema = api_registry.get_full_schema(tool_name)
+                        if full_schema:
+                            self.memory.add_message("system", f"错误: 对工具 {tool_name} 的调用失败。这是该工具的完整文档，请修正你的调用方法:\n{json.dumps(full_schema, ensure_ascii=False, indent=2)}")
             else:
                 print("\n[系统]: Agent 认为任务已完成，循环结束。")
                 if response_msg.content:
@@ -401,7 +422,7 @@ class Agent:
                 print(f"\n[系统警告]: Agent 达到全局超时限制 ({self.timeout_seconds}秒)，被安全机制强制中断！")
                 break
             
-            tools = registry.get_openai_schemas()
+            tools = api_registry.get_all_summaries()
             
             # 在发送请求前检查 Token 预算并触发压缩
             if self.memory.get_total_tokens() > self.memory.token_budget:
@@ -468,12 +489,22 @@ class Agent:
                 
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     parallel_results = list(executor.map(lambda tc: self._execute_tool(tc, step_id=iteration), parallel_calls))
-                    for tool_call_id, result in parallel_results:
+                    for tool_call_id, result, error_code in parallel_results:
                         self.memory.add_tool_message(tool_call_id, result)
+                        if error_code in ["E_TOOL_NOT_FOUND", "E_TOOL_INVALID_ARGS"]:
+                            tool_name = response_msg.tool_calls[int(tool_call_id.split('_')[-1])].function.name
+                            full_schema = api_registry.get_full_schema(tool_name)
+                            if full_schema:
+                                self.memory.add_message("system", f"错误: 对工具 {tool_name} 的调用失败。这是该工具的完整文档，请修正你的调用方法:\n{json.dumps(full_schema, ensure_ascii=False, indent=2)}")
 
                 for tool_call in serial_calls:
-                    tool_call_id, result = self._execute_tool(tool_call, step_id=iteration)
+                    tool_call_id, result, error_code = self._execute_tool(tool_call, step_id=iteration)
                     self.memory.add_tool_message(tool_call_id, result)
+                    if error_code in ["E_TOOL_NOT_FOUND", "E_TOOL_INVALID_ARGS"]:
+                        tool_name = tool_call.function.name
+                        full_schema = api_registry.get_full_schema(tool_name)
+                        if full_schema:
+                            self.memory.add_message("system", f"错误: 对工具 {tool_name} 的调用失败。这是该工具的完整文档，请修正你的调用方法:\n{json.dumps(full_schema, ensure_ascii=False, indent=2)}")
             else:
                 print("\n[系统]: Agent 认为任务已完成，循环结束。")
                 break
