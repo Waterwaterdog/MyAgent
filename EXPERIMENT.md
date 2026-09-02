@@ -1,88 +1,24 @@
-# Experiment Log
 
-This file will log the experiments for each task.
 
-## Task 01: Agent 核心循环审计与模块化
+## Task 07: Plan → Execute 架构
 日期：2026-09-02
-目标：审计当前代码，梳理 Agent 核心循环并模块化。
-修改文件：`coding_agent/core/agent.py` 等。
-核心设计：拆分了 Agent 主循环、LLM 请求、上下文管理。
-测试命令：运行 `python -m coding_agent.main`
-测试结果：基础任务能够正常流转并完成。
-遇到的问题：无。
-解决方法：无。
-是否回归测试：是。
-结论：基础模块化成功，具备扩展性。
-
-## Task 02: Tool Schema + Tool Factory
-日期：2026-09-02
-目标：建立工程化的 Tool 系统。
-修改文件：`coding_agent/tools/base.py`, `coding_agent/tools/registry.py` 等。
-核心设计：定义了 `BaseTool`，包含 `input_schema` 和 `execute`，实现了 `ToolRegistry` 管理所有工具。
-测试命令：运行工具调度测试
-测试结果：能够动态加载工具和获取 OpenAI JSON Schema。
-遇到的问题：无。
-解决方法：无。
-是否回归测试：是。
-结论：工具系统已标准化，方便后续新增工具。
-
-## Task 03: Tool 串行 / 并行执行
-日期：2026-09-02
-目标：支持互不依赖的 Tool 并行执行以提高效率。
-修改文件：`coding_agent/core/agent.py`, `coding_agent/tools/base.py`
-核心设计：在 `BaseTool` 中增加了 `parallel_safe` 属性。Agent 主循环中，对于 `parallel_safe=True` 的工具使用 `ThreadPoolExecutor` 并发执行，其他的串行执行。
-测试命令：运行包含多个 `read_file` 调用的测试任务。
-测试结果：多个 `read_file` 能够并行执行，缩短了总体执行时间。
-遇到的问题：无。
-解决方法：无。
-是否回归测试：是。
-结论：并行机制工作正常，能有效提升多文件读取时的性能。
-
-## Task 04: 标准化 Error Code + 错误包装
-日期：2026-09-02
-目标：将工具的异常输出统一为结构化的 AgentError 对象，替换直接抛出 Exception 或返回错误字符串。
-修改文件：`coding_agent/core/agent.py`, `coding_agent/core/error.py`, `coding_agent/tools/cmd_ops.py`, `coding_agent/tools/file_ops.py`, `ERROR_CODES.md`
+目标：增加可选的规划模式，使 Agent 能够先将复杂任务分解为结构化计划，然后逐一执行。
+修改文件：`coding_agent/core/agent.py`, `coding_agent/planning/planner.py`, `coding_agent/main.py`
 核心设计：
-1. 创建了 `ERROR_CODES.md` 文档，定义了标准的错误码及其含义。
-2. 新增了 `coding_agent/core/error.py` 模块，定义了 `AgentError` 类，用于封装错误信息，包括 code, type, message, details, retryable, suggested_actions, trace_id。
-3. 修改了 `file_ops.py` 和 `cmd_ops.py`，将底层的 `Exception` 捕获并包装为对应的 `AgentError`。
-4. 在 `agent.py` 的 `_execute_tool` 方法中，增加了对 `AgentError` 的捕获。捕获后，将其转换为 JSON 字符串，作为工具执行结果返回给 LLM。这样 LLM 就能在上下文中看到结构化的错误，为下一步决策提供依据。
-测试命令：手动测试，例如尝试读取一个不存在的文件。
-测试结果：Agent 能够捕获 `E_FILE_NOT_FOUND` 错误，并将其格式化为 JSON 返回。Agent 主循环正常运转。
-遇到的问题：无。
-解决方法：无。
-是否回归测试：是。
-结论：成功实现了标准化的错误处理机制。所有工具的错误都被包装成统一的 `AgentError`，这使得 Agent 对错误的感知和处理更加结构化，为后续实现基于错误的自主恢复（Task 05）打下了关键基础。
-
-## Task 05: Error → Model 决策闭环
-日期：2026-09-02
-目标：使 Agent 能够根据工具返回的结构化错误（特别是 `suggested_actions`）自主决策，进行恢复性操作，而不是简单地将错误报告给用户。
-修改文件：`coding_agent/main.py`
-核心设计：修改了 `main.py` 中的系统提示（system prompt），用更强硬和明确的指令，要求模型**必须**优先采纳 `suggested_actions` 提供的建议来修复问题，并禁止直接向用户报告可恢复的错误。这是一个纯粹基于提示工程（Prompt Engineering）的软实现，但对于引导模型行为至关重要。
-测试命令：`python -u "d:\简历\夏令营\南京大学\南软项目\coding_agent\main.py"` （其中 `main.py` 的用户输入被硬编码为读取一个不存在的文件）。
+1.  **Planner 模块**: 新增 `coding_agent/planning/planner.py`，定义了 `Planner` 类。该类使用专门的系统提示，引导 LLM 将用户任务分解为一个包含 `goal` 和 `steps` 的 JSON 计划。
+2.  **Agent 改造**:
+    *   在 `Agent` 的 `__init__` 方法中增加了 `planning_mode` 开关。
+    *   当 `planning_mode` 开启时，`run` 方法首先调用 `Planner` 创建计划。
+    *   创建了 `_execute_step` 方法，它封装了执行单个计划步骤的逻辑（包含一个小的 Agent 循环）。
+    *   主 `run` 方法则负责遍历计划，调用 `_execute_step` 来执行每个步骤，并更新步骤状态。
+3.  **入口改造**: 修改 `main.py`，增加了 `--plan` 命令行参数，用于从外部启动时激活规划模式。
+测试命令：`python -m coding_agent.main --plan`
 测试结果：
-1. Agent 调用 `read_file` 失败，收到 `E_FILE_NOT_FOUND` 错误和 `suggested_actions`（建议 `list_files`）。
-2. 在新的 Prompt 指导下，Agent 没有向用户报错，而是自主调用了 `list_files` 工具。
-3. 在确认文件不存在后，Agent 才向用户报告最终结论。
-4. 实现了“错误 → 模型决策 → 新工具调用”的闭环，Agent 表现出初步的自恢复能力。
-遇到的问题：最初的 Prompt 不够明确，导致模型倾向于直接报告错误而不是尝试修复。
-解决方法：通过加强 Prompt 的指令性，使用“必须”、“强制性要求”等词语，并明确禁止错误报告，成功改变了模型的行为模式。
-是否回归测试：是。
-结论：成功实现了将工具层面的错误反馈给模型，并由模型主导决策闭环的关键机制。这是 Agent 实现自主性的核心能力之一。虽然看似只是修改了 Prompt，但它验证了从 Tool → Error → Context → Model → New Tool 的完整链路是通畅的。
-
-## Task 06: 防死循环机制
-日期：2026-09-02
-目标：为 Agent 实现一个健壮的“防死循环机制”，通过多层防御来保证 Agent 在遇到问题时能够稳定终止，而不是无限循环。
-修改文件：`coding_agent/core/agent.py`
-核心设计：
-1.  **可配置化**：为 `Agent` 类增加了 `max_steps` 和 `timeout_seconds` 参数，使循环上限和全局超时可配置。
-2.  **最大步数限制**：主循环会根据 `max_steps` 参数进行迭代，到达上限后强制中断。
-3.  **全局超时**：在 Agent 开始执行时记录时间戳，每次迭代检查是否超时。
-4.  **重复调用/状态检测**：在 Agent 内部维护了一个 `_tool_call_history` 字典，用于追踪 `(tool_name, arguments)` 组合的调用次数。当同一个调用组合达到 3 次时，会强制中断循环。
-5.  **无进展检测**：通过比较连续两次的工具调用组合，如果完全相同，则视为“无进展”。连续 3 次无进展后，会向模型注入一条系统消息 `You seem to be making no progress. Please choose a different strategy.`，引导模型改变策略。
-测试命令：`python -u "d:\简历\夏令营\南京大学\南软项目\coding_agent\main.py"` （其中 `main.py` 的用户输入被硬编码为读取一个不存在的文件）。
-测试结果：测试中，Agent 首先尝试读取不存在的文件，收到了 `E_FILE_NOT_FOUND` 错误和 `suggested_actions`。Agent 并未盲目重试，而是采纳建议调用了 `list_files`，在确认文件不存在后，向用户报告并正常终止。这展示了 Task 05 的错误处理闭环与 Task 06 的防循环机制的良好协同，Agent 通过智能决策避免了死循环，而不是撞上硬性的重复调用限制。测试成功达到了“保证 Agent 可终止”的目标。
+1.  启动时，Agent 打印出“Plan->Execute 模式已启用”。
+2.  输入任务后，Agent 首先生成一个 JSON 格式的计划，并打印到控制台。
+3.  然后，Agent 按照计划中的步骤顺序执行，每个步骤都像一个子任务一样被 Agent 的思考循环处理。
+4.  所有步骤完成后，Agent 正常终止。
 遇到的问题：无。
 解决方法：无。
 是否回归测试：是。
-结论：成功为 Agent 构建了一个多层次的安全网。这些机制确保了 Agent 的鲁棒性，即使在面对持续的错误或模型决策陷入循环时，也能够被强制终止，避免了失控和资源浪费。这是保障 Agent 可靠运行的关键工程实践。
+结论：成功实现了 Plan → Execute 架构。该架构将任务的“规划”和“执行”两个阶段解耦，显著提升了 Agent 处理长链条、多步骤任务的能力和逻辑清晰度。Planner 负责宏观的“做什么”，Executor 负责微观的“怎么做”，是实现更高级 Agent 行为的关键一步。

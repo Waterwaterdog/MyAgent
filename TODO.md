@@ -8,14 +8,15 @@
 - Task 04: 标准化 Error Code + 错误包装
 - Task 05: Error → Model 决策闭环
 - Task 06: 防死循环机制
+- Task 07: Plan → Execute 架构
 
 ## Current
 
-- Task 07: Plan → Execute 架构
+- Task 08: ReAct 架构
 
 ## Next
 
-- Task 08: ReAct 架构
+- Task 09: Plan + ReAct 混合架构
 
 ## Blocked
 

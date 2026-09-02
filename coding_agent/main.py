@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 
 # 将项目根目录（coding_agent的上级目录）添加到 sys.path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -12,8 +13,14 @@ from coding_agent.core.context import Memory
 from coding_agent.core.model_client import LLMClient
 
 def main():
+    parser = argparse.ArgumentParser(description="Coding Agent for Nanjing University's summer camp project.")
+    parser.add_argument('--plan', action='store_true', help='Enable Plan->Execute mode.')
+    args = parser.parse_args()
+
     print("=======================================")
     print("  Coding Agent 启动 (推免考核项目阶段 3)")
+    if args.plan:
+        print("  (Plan->Execute 模式已启用)")
     print("=======================================")
     
     # 从 .env 文件中加载环境变量
@@ -36,7 +43,7 @@ def main():
         memory = Memory(system_prompt)
         
         # 注入依赖，实例化 Agent
-        agent = Agent(llm_client, memory)
+        agent = Agent(llm_client, memory, planning_mode=args.plan)
     except Exception as e:
         print(f"Agent 初始化失败: {e}")
         return

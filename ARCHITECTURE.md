@@ -1,11 +1,17 @@
-# Architecture
 
-This document will describe the architecture of the Coding Agent.
 
-## 核心架构设计
-当前已完成模块化拆分与工具系统工程化：
+## Plan → Execute 架构
 
-- **Agent 主循环 (Agent Loop)**: `coding_agent/core/agent.py` 负责控制整个智能体的运行生命周期，包括状态维护和最大轮次限制。
-- **工具注册表 (Tool Registry)**: `coding_agent/tools/registry.py` 通过 `ToolRegistry` 管理工具的动态加载。
-- **基础工具接口 (BaseTool)**: `coding_agent/tools/base.py` 定义了标准化工具接口，包括 JSON Schema 生成和参数校验。
-- **并行执行运行时 (Parallel Runtime)**: Agent 主循环中实现了依据 `parallel_safe` 属性动态判断并采用 `ThreadPoolExecutor` 并发执行多个安全工具（如并发读取多个文件）的逻辑。
+为了支持更复杂的长链条任务，项目引入了可选的 Plan → Execute 架构。
+
+- **规划器 (Planner)**: 在 `coding_agent/planning/planner.py` 中实现。当 `planning_mode` 开启时，`Planner` 首先被调用。它通过一个特定的系统提示，让大语言模型（LLM）将用户的宏观任务分解成一个结构化的 JSON 计划。这个计划包含一个总体目标（goal）和一系列具体的步骤（steps）。
+
+- **执行器 (Executor)**: `Agent` 本身在规划模式下扮演执行器的角色。它不再是直接面对模糊的用户任务进行开放式循环，而是接收清晰、明确的计划步骤。`Agent` 会遍历计划中的每一步，并调用 `_execute_step` 方法。
+
+- **步骤执行 (_execute_step)**: 这个方法为每个计划步骤启动一个“微型”的 Agent 循环。在这个微循环中，Agent 的目标是完成当前这一个具体步骤。它会利用现有的工具调用、错误处理和防死循环机制来确保步骤的顺利完成。
+
+这个架构的核心优势在于**责任分离**：
+- **Planner 关注“做什么”（What）**: 它负责战略层面的任务分解，将一个模糊的、可能需要多步才能解决的问题，拆解成一系列清晰、可执行的子任务。
+- **Executor 关注“怎么做”（How）**: 它负责战术层面的任务执行，聚焦于如何利用现有工具集高效、可靠地完成每一个具体的子任务。
+
+通过这种方式，Agent 的行为变得更加可预测、可控，也更容易调试。
