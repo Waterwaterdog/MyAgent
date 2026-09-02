@@ -15,14 +15,16 @@
 - Task 11: 上下文管理与 Token Budget
 - Task 12: Tool Result 压缩
 - Task 13: API 摘要与 API 文档注入
+- Task 14: Prompt 静态/动态分离
+- Task 15: Memory：短期/中期/长期
 
 ## Current
 
-- Task 14: Prompt 静态/动态分离
+- Task 16: Memory + KV Cache 复用策略
 
 ## Next
 
-- Task 15: Memory：短期/中期/长期
+- Task 17: Skill 系统
 
 ## Blocked
 

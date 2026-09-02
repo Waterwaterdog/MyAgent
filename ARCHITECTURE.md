@@ -98,5 +98,16 @@ ReAct 架构的优势在于其**动态适应性**，它能够处理那些在开�
 - **静态前缀 (Static Prefix)**: 在 `coding_agent/core/prompt.py` 中定义。这部分包含 Agent 的身份定义、通用的工具使用规范、标准化的输出格式、安全规则以及错误处理协议。这些内容在整个任务生命周期中是完全不变的，作为所有请求的起始部分（Prefix），极大地提高了 KV Cache 的命中率，降低了首字延迟。
 - **动态指令 (Dynamic Instructions)**: 根据用户选择的运行模式（Standard, ReAct, Plan, Hybrid）动态生成的指令。这部分内容在选定模式后也是相对稳定的。
 - **任务感知上下文 (Task Context)**: 包括当前的任务计划（Plan）、对话摘要（Summary）以及最近的对话历史。这部分内容会随着任务推进而变化，被放置在 Prompt 的后部。
-- **分层注入**: `ContextManager` 在组装消息列表时，严格遵循 `STATIC PREFIX -> DYNAMIC MODE -> PLAN/SUMMARY -> DYNAMIC HISTORY` 的顺序。这种设计不仅在工程上实现了责任分离，更在底层机制上对 Token 消耗和响应速度进行了优化。
+- **分层注入**: `ContextManager` 在组装消息列表时，严格遵循 `STATIC PREFIX -> DYNAMIC MODE -> PLAN/SUMMARY -> DYNAMIC HISTORY` 的顺序。这种设计不仅在工程上实现了责任分离，更在底层机制上对 Token 消耗 and 响应速度进行了优化。
+
+---
+
+## 三层记忆系统 (Layered Memory System)
+
+为了提升 Agent 的长期稳定性和个性化能力，项目实现了一套分层记忆系统，详细设计见 [MEMORY.md](file:///d:/简历/夏令营/南京大学/南软项目/MEMORY.md)。
+
+- **短期记忆 (Short-term)**: 维护在 `ContextManager` 中，包含即时对话和执行计划。支持自动语义压缩以应对 Token 预算超限。
+- **中期记忆 (Mid-term)**: 维护在 `MemoryManager` 的内存结构中，存储当前会话的项目规范、关键决策和已知错误。通过定期调用 LLM 从对话中提取 insights 实现自动更新。
+- **长期记忆 (Long-term)**: 持久化在磁盘上的 JSON 文件中，存储跨会话的用户偏好和通用经验知识。
+- **记忆提取与注入**: Agent 在执行过程中自动识别并沉淀知识，并在每一轮推理前将相关的记忆片段动态注入到上下文的特定位置。
 

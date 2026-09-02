@@ -47,3 +47,24 @@
 解决方法：无。
 是否回归测试：是。
 结论：Task 14 成功实现了 Prompt 的静态/动态分离。这种设计从工程角度实现了 Prompt 的模块化管理，并从底层机制上为模型推理性能的优化（KV Cache）打下了坚实基础，是 Agent 系统向生产级演进的重要一步。
+
+---
+
+## Task 15: Memory：短期 / 中期 / 长期
+日期：2026-09-02
+目标：建立三层记忆系统（短期、中期、长期），实现知识的自动沉淀与按需检索，提升 Agent 的任务连续性和跨会话一致性。
+修改文件：`coding_agent/core/memory.py`, `coding_agent/core/context.py`, `coding_agent/core/agent.py`
+核心设计：
+1.  **MemoryManager**: 新增 `coding_agent/core/memory.py`。负责管理中期记忆（Session-level, 内存）和长期记忆（Persistent, 磁盘 JSON）。实现了 `extract_insights`（利用 LLM 从对话中提取知识点）和 `get_memory_context`（组装记忆上下文）。
+2.  **ContextManager 适配**: 修改 `coding_agent/core/context.py`，支持接收并注入 `memory_context`。将记忆内容放置在 Prompt 的 `system` 消息中，位于静态前缀之后。
+3.  **Agent 闭环触发**: 修改 `coding_agent/core/agent.py`。Agent 在每轮执行前自动同步记忆，并在步骤完成或每 5 轮迭代后触发一次记忆提取，实现了“边做边记”的自主学习能力。
+测试命令：`python d:\简历\夏令营\南京大学\南软项目\test_memory.py`
+测试结果：
+1.  成功验证了 `MemoryManager` 对中期记忆（规范、决策、错误）和长期记忆（用户偏好）的分类存储。
+2.  成功验证了利用 LLM Mock 返回的 JSON 自动更新记忆库的逻辑。
+3.  成功验证了长期记忆的磁盘持久化功能。
+4.  生成的记忆上下文能够清晰地反映当前 Session 的核心 insights。
+遇到的问题：测试时发现 LLM 返回的 JSON 解析需要健壮性处理（处理 Markdown 代码块标签）。
+解决方法：在解析前对返回内容进行了 strip 处理，并支持 ` ```json ` 标签的剥离。
+是否回归测试：是。
+结论：Task 15 为 Agent 注入了“灵魂”，使其不再仅仅是单次任务的处理器，而是能够随着使用不断积累经验的智能实体。三层记忆架构在保证响应效率的同时，实现了知识的有效过滤与沉淀，极大地增强了 Agent 在复杂编程任务中的逻辑连贯性。

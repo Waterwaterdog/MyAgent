@@ -4,6 +4,7 @@ import concurrent.futures
 from collections import defaultdict
 from coding_agent.core.model_client import LLMClient
 from coding_agent.core.context import Memory
+from coding_agent.core.memory import MemoryManager
 from coding_agent.tools.registry import registry, api_registry
 from coding_agent.core.error import AgentError
 from coding_agent.planning.planner import Planner
@@ -25,6 +26,7 @@ class Agent:
         self.react_mode = react_mode or hybrid_mode
         self.hybrid_mode = hybrid_mode
         self.result_analyzer = ResultAnalyzer()
+        self.memory_manager = MemoryManager(llm_client)
         
         # 防死循环机制所需的状态追踪
         self._tool_call_history = defaultdict(int)
@@ -38,6 +40,11 @@ class Agent:
         if self.planning_mode:
             self.planner = Planner(llm_client)
             self.plan = None
+
+    def _sync_memory(self):
+        """同步中长期记忆到上下文管理器"""
+        memory_str = self.memory_manager.get_memory_context()
+        self.memory.update_memory(memory_str)
 
     def _execute_tool(self, tool_call, step_id=None):
         tool_name = tool_call.function.name
@@ -125,6 +132,9 @@ class Agent:
                 print(f"\n[系统警告]: 步骤执行达到全局超时限制 ({self.timeout_seconds}秒)！")
                 return "timeout"
             
+            # 同步记忆到上下文
+            self._sync_memory()
+            
             tools = api_registry.get_all_summaries()
             
             # 在发送请求前检查 Token 预算并触发压缩
@@ -169,6 +179,10 @@ class Agent:
                      if self.tracer:
                          self.tracer.log_event("loop_warning", {"reason": "repeated_tool_calls"}, step=step["id"])
                 
+                # 每 5 轮提取一次记忆
+                if iteration % 5 == 0:
+                    self.memory_manager.extract_insights(self.memory.messages)
+                
                 for tool_call in response_msg.tool_calls:
                     call_tuple = (tool_call.function.name, tool_call.function.arguments)
                     if self._tool_call_history[call_tuple] >= 3:
@@ -208,6 +222,8 @@ class Agent:
                             self.memory.add_message("system", f"错误: 对工具 {tool_name} 的调用失败。这是该工具的完整文档，请修正你的调用方法:\n{json.dumps(full_schema, ensure_ascii=False, indent=2)}")
             else:
                 print("\n[系统]: Agent 认为该步骤已完成。")
+                # 步骤完成后提取记忆
+                self.memory_manager.extract_insights(self.memory.messages)
                 return "completed"
                 
         return "max_steps_reached"
@@ -315,6 +331,9 @@ class Agent:
                 print(f"\n[系统警告]: Agent 达到全局超时限制 ({self.timeout_seconds}秒)，被安全机制强制中断！")
                 break
             
+            # 同步记忆到上下文
+            self._sync_memory()
+            
             tools = api_registry.get_all_summaries()
             
             # 在发送请求前检查 Token 预算并触发压缩
@@ -360,6 +379,18 @@ class Agent:
                      self.memory.add_message("system", "You seem to be making no progress. Please choose a different strategy.")
                      if self.tracer:
                          self.tracer.log_event("loop_warning", {"reason": "repeated_tool_calls"}, step=iteration)
+                
+                # 每 5 轮提取一次记忆
+                if iteration % 5 == 0:
+                    self.memory_manager.extract_insights(self.memory.messages)
+                
+                # 每 5 轮提取一次记忆
+                if iteration % 5 == 0:
+                    self.memory_manager.extract_insights(self.memory.messages)
+                
+                # 每 5 轮提取一次记忆
+                if iteration % 5 == 0:
+                    self.memory_manager.extract_insights(self.memory.messages)
                 
                 for tool_call in response_msg.tool_calls:
                     call_tuple = (tool_call.function.name, tool_call.function.arguments)
@@ -407,6 +438,9 @@ class Agent:
                 if response_msg.content:
                     # Final answer
                     print(f"\n[Agent 最终回复]:\n{response_msg.content}")
+                
+                # 任务完成后提取记忆
+                self.memory_manager.extract_insights(self.memory.messages)
                 break
                 
         if iteration >= self.max_steps:
@@ -423,6 +457,9 @@ class Agent:
             if time.time() - start_time > self.timeout_seconds:
                 print(f"\n[系统警告]: Agent 达到全局超时限制 ({self.timeout_seconds}秒)，被安全机制强制中断！")
                 break
+            
+            # 同步记忆到上下文
+            self._sync_memory()
             
             tools = api_registry.get_all_summaries()
             
@@ -467,6 +504,10 @@ class Agent:
                      self.memory.add_message("system", "You seem to be making no progress. Please choose a different strategy.")
                      if self.tracer:
                          self.tracer.log_event("loop_warning", {"reason": "repeated_tool_calls"}, step=iteration)
+
+                # 每 5 轮提取一次记忆
+                if iteration % 5 == 0:
+                    self.memory_manager.extract_insights(self.memory.messages)
                 
                 for tool_call in response_msg.tool_calls:
                     call_tuple = (tool_call.function.name, tool_call.function.arguments)
@@ -509,6 +550,8 @@ class Agent:
                             self.memory.add_message("system", f"错误: 对工具 {tool_name} 的调用失败。这是该工具的完整文档，请修正你的调用方法:\n{json.dumps(full_schema, ensure_ascii=False, indent=2)}")
             else:
                 print("\n[系统]: Agent 认为任务已完成，循环结束。")
+                # 任务完成后提取记忆
+                self.memory_manager.extract_insights(self.memory.messages)
                 break
                 
         if iteration >= self.max_steps:

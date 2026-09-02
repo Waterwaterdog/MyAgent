@@ -1,58 +1,47 @@
-# Memory & Context Design Document
+# Memory System Design
 
-This document describes the design and implementation of the memory and context management system for the Coding Agent.
+本文件详细说明了 Coding Agent 的三层记忆系统设计。该系统旨在平衡实时响应的精确度与跨任务的长期知识沉淀。
 
-## 1. Overview
+## 1. 记忆架构
 
-As an autonomous agent performs tasks, the conversation history and tool results can grow significantly. Without proper management, this leads to:
-- **Exceeding LLM context limits**: The model may stop accepting new input.
-- **Increased cost**: More tokens result in higher API fees.
-- **Performance degradation**: Large contexts can slow down reasoning or cause the model to lose track of key information.
+记忆系统分为三个层次，每层具有不同的生命周期和存储机制：
 
-The `ContextManager` (formerly `Memory`) is designed to mitigate these issues.
+### 1.1 短期记忆 (Short-term Memory)
+- **内容**: 最近的对话历史、当前任务的执行计划、最近的工具执行结果摘要。
+- **存储**: 在 `ContextManager` (Memory) 中以原始消息列表形式存在。
+- **生命周期**: 仅限当前任务。当超过 Token 预算时，会通过 LLM 进行语义总结以节省空间。
+- **作用**: 提供即时的任务上下文，确保 Agent 能够理解当前的对话状态和工具反馈。
 
-## 2. Core Components
+### 1.2 中期记忆 (Mid-term Memory)
+- **内容**: 
+    - 项目规范 (Project Conventions): 如缩进风格、命名规则等。
+    - 关键决策 (Key Decisions): 任务执行过程中做出的重要架构或逻辑选择。
+    - 已知错误 (Known Errors): 任务过程中遇到并解决的陷阱，防止重复犯错。
+    - 当前进度 (Current Progress): 对整体任务完成情况的概括。
+- **存储**: 在 `MemoryManager` 中以结构化字典形式存储在内存中。
+- **生命周期**: 贯穿整个会话 (Session)。
+- **获取方式**: 每一轮或每隔几轮，Agent 会调用 LLM 从最近的对话历史中提取这些信息。
+- **作用**: 保持会话内的一致性，减少 LLM 对重复信息的重复学习，提高纠错效率。
 
-### 2.1 Token Estimation
+### 1.3 长期记忆 (Long-term Memory)
+- **内容**:
+    - 用户偏好 (User Preferences): 用户偏好的编程语言、库或代码风格。
+    - 可复用知识 (Reusable Knowledge): 在多个任务中都可能有用的通用经验。
+- **存储**: 持久化存储在本地文件 `logs/long_term_memory.json` 中。
+- **生命周期**: 永久（跨任务运行）。
+- **作用**: 实现 Agent 的个性化，使其随使用时间的增加而变得更加“懂”用户。
 
-We use a heuristic approach to estimate tokens without requiring heavy external libraries:
-- **Non-ASCII characters (e.g., Chinese)**: Estimated at 1.5 tokens each.
-- **ASCII characters**: Estimated at 0.33 tokens each.
-- **Formula**: `int(non_ascii * 1.5 + ascii_chars / 3) + 1`
+## 2. 核心机制
 
-### 2.2 Token Budget
+### 2.1 记忆提取 (Extraction)
+Agent 在主循环中会自动触发记忆提取。它将最近的对话片段发送给 LLM，要求其识别并提取出符合中长期记忆定义的关键点。提取后的内容会以 JSON 格式返回并更新到 `MemoryManager` 中。
 
-The `ContextManager` maintains a `token_budget` (defaulting to 4000). Before each call to the LLM, the Agent checks the total estimated tokens. If the budget is exceeded, a compression cycle is triggered.
+### 2.2 记忆检索与注入 (Retrieval & Injection)
+在每一轮 LLM 调用前，`ContextManager` 会从 `MemoryManager` 中检索出相关的中长期记忆内容，并将其作为 `system` 消息注入到 Prompt 的特定位置（位于静态前缀之后，动态历史之前）。
 
-### 2.3 Context Compression (Self-Summarization)
+### 2.3 动态更新 (Update)
+- 中期记忆在会话结束时随内存释放。
+- 长期记忆在提取到新内容时会即时写回磁盘。
 
-Instead of hard truncation (which loses important context), we use **Self-Summarization**:
-1. **Selection**: We split the message history into "Old Messages" and "Recent Messages" (typically the last 4 messages).
-2. **Summarization**: The "Old Messages" are sent to the LLM with a prompt to summarize progress, key findings, and current state.
-3. **Merging**: If a summary already exists, the new summary is merged with the old one.
-4. **Replacement**: The "Old Messages" are removed from the message list, and the new summary is stored.
-
-## 3. Context Structure
-
-When sending messages to the LLM, the context is assembled as follows:
-
-1. **System Prompt**: The core instructions for the Agent.
-2. **Context Summary**: If available, the summarized history is injected as a system message: `"Here is a summary of the previous conversation to save context: ..."`
-3. **Recent Messages**: The uncompressed messages that are most relevant to the current reasoning step.
-
-## 4. Usage in Agent Loop
-
-```python
-# Before each LLM call
-if self.memory.get_total_tokens() > self.memory.token_budget:
-    self.memory.compress()
-    self.tracer.log_event("context_compression", ...)
-
-response = self.llm.chat(self.memory.get_messages(), tools)
-```
-
-## 5. Benefits
-
-- **Scalability**: Allows the Agent to handle extremely long tasks without hitting token limits.
-- **Explainability**: Summaries provide a clear view of what the Agent thinks has happened so far.
-- **Cost Efficiency**: Reduces the average number of tokens per request.
+## 3. 创新价值
+这种设计解决了传统 Agent 仅依赖简单对话历史（Chat History）导致的“健忘”和上下文膨胀问题。通过显式地提取和分层存储知识，Agent 能够以极低的 Token 成本，在长达数百轮的交互中依然保持对核心规范和用户偏好的精准记忆。

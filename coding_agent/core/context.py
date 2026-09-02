@@ -31,10 +31,15 @@ class ContextManager:
         self.messages: List[Dict[str, Any]] = []
         self.summary: Optional[str] = None
         self.current_plan: Optional[Dict] = None
+        self.memory_context: Optional[str] = None
         
     def update_plan(self, plan: Dict):
         """更新当前执行计划，作为动态上下文的一部分"""
         self.current_plan = plan
+
+    def update_memory(self, memory_str: str):
+        """更新从中长期记忆中检索出的信息"""
+        self.memory_context = memory_str
 
     def add_message(self, role: str, content: str = None, **kwargs):
         """通用消息追加方法"""
@@ -68,6 +73,10 @@ class ContextManager:
         # 计划部分
         if self.current_plan:
             total += estimate_tokens(json.dumps(self.current_plan))
+            
+        # 记忆部分
+        if self.memory_context:
+            total += estimate_tokens(self.memory_context)
             
         # 对话历史部分
         for msg in self.messages:
@@ -104,7 +113,14 @@ class ContextManager:
                  "content": f"## 当前任务计划\n{json.dumps(self.current_plan, ensure_ascii=False, indent=2)}"
              })
         
-        # 4. SUMMARY (如果有)
+        # 4. MEMORY CONTEXT (Mid-term / Long-term)
+        if self.memory_context:
+            result.append({
+                "role": "system",
+                "content": f"## 相关记忆与知识\n{self.memory_context}"
+            })
+        
+        # 5. SUMMARY (如果有)
         if self.summary:
             result.append({
                 "role": "system", 
